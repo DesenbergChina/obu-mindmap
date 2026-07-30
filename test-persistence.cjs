@@ -379,6 +379,20 @@ async function run() {
   assert.ok(!overlayClasses.has('stratify-hidden'));
   assert.strictEqual(notices.at(-1), 'Default view set to Mind Map');
 
+  const processFrontMatterBeforeBrandTest = plugin.app.fileManager.processFrontMatter;
+  const consoleErrorBeforeBrandTest = console.error;
+  let loggedBrand = null;
+  plugin.app.fileManager.processFrontMatter = async () => {
+    throw new Error('brand-test');
+  };
+  console.error = (prefix) => {
+    loggedBrand = prefix;
+  };
+  await plugin._persistFrontmatterValue(file, 'mindmap-layout', 'right');
+  console.error = consoleErrorBeforeBrandTest;
+  plugin.app.fileManager.processFrontMatter = processFrontMatterBeforeBrandTest;
+  assert.strictEqual(loggedBrand, '[ObuMindmap] frontmatter persist error');
+
   const legacyFile = { path: 'Maps/Legacy.md', basename: 'Legacy' };
   const legacyContent = [
     '---',

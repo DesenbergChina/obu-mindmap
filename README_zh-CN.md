@@ -1,166 +1,212 @@
-# Stratify Mindmap
+# Obu Mindmap
 
-[English](https://github.com/Lywooye/stratify-mindmap/blob/main/README.md) | **简体中文**
+[English](README.md) | **简体中文**
 
-Stratify Mindmap 是一个以 Markdown 为数据源的 Obsidian 思维导图插件。它让导图在电脑和手机上仍然保持为可阅读、可编辑的 Markdown，同时支持超过六层的节点结构。
+Obu Mindmap 是一个以 Markdown 为原生数据格式的 Obsidian 思维导图插件。它可以把标题和嵌套列表显示为可交互导图，同时保留清晰、可移植的 Markdown 源文。
 
-界面采用紧凑设计：结构模式和布局保留在主工具栏，常用视图操作使用图标，主题、连线、节点样式和导出收进同一个菜单。
+Obu Mindmap 基于 Stratify Mindmap 开发，并继续使用相同的 Markdown 数据格式；插件 ID、设置、安装目录、版本、仓库和 Release 渠道均独立。
 
-## 1.2.0 新增内容
+## 主要功能
 
-- Obsidian 重载或后台标签页恢复可见后，自动恢复正确的导图布局。
-- 启动阶段画布尺寸无效时不再写入接近零的错误缩放。
-- 工作区尺寸稳定期间自动重新适配，用户手动平移或缩放后不再抢回视角。
-
-## 主要特点
-
-- 支持超过六层的思维导图
-- 支持 Heading、Hybrid、List 三种 Markdown 结构
-- 转换现有 Markdown 时自动识别结构
-- 直接编辑节点并写回 Markdown
-- 支持跨父级、同级前后位置的拖拽
-- 支持方向键选择节点和键盘调整层级
-- 支持导图操作的撤销与重做
-- 支持 Obsidian 双向链接、节点折叠、多种布局和 PNG 导出
-- 使用带色块预览的主题选择器和成熟分类配色
-- 可调节节点字号，并同步用于 PNG 导出
-- 长节点文字自动换行，整体布局更加紧凑
-- 对仅保存在 Markdown 源文档中的内容显示提示
-- 工作区和标签页恢复后可靠地重建布局
-- 手机端工具栏同时避开系统安全区域和 Obsidian 顶部按钮，触控区域增大到 44 像素
+- Heading、Hybrid、List 三种结构模式
+- 平衡、左、右、树形、径向五种布局
+- 键盘编辑与导航、拖拽、普通链接和 Wiki 链接
+- 每篇笔记可独立选择默认打开脑图或 Markdown
+- 折叠状态不再占用 Markdown 斜体语法
+- 每个分支显示可点击、可访问的 `+/-` 按钮
+- 显式迁移旧版 `*折叠节点*` 标记
+- 导出完全移除 frontmatter 的纯净 Markdown
+- PNG 导出、主题、连接线和节点样式
 - 支持桌面端和移动端
 
-## 界面示意
+![Obu Mindmap 桌面端导图总览](assets/desktop-overview.png)
 
-以下图片展示当前版本的 Stratify 界面布局。
+## Markdown 格式
 
-### 导图总览
+Obu Mindmap 继续通过以下字段识别脑图：
 
-![Stratify Mindmap 桌面端导图总览](https://raw.githubusercontent.com/Lywooye/stratify-mindmap/main/assets/desktop-overview.png)
+```yaml
+---
+type: mindmap
+---
+```
 
-### 外观与导出菜单
+以下现有字段继续兼容：
 
-![Stratify Mindmap 外观与导出菜单](https://raw.githubusercontent.com/Lywooye/stratify-mindmap/main/assets/appearance-menu.png)
+```yaml
+mindmap-structure:
+mindmap-layout:
+mindmap-theme:
+mindmap-line:
+mindmap-node:
+```
 
-### 手机端工具栏
+无需转换为 `type: obu-mindmap`。
 
-<img src="https://raw.githubusercontent.com/Lywooye/stratify-mindmap/main/assets/mobile-toolbar.png" alt="位于灵动岛安全区域下方的 Stratify Mindmap 手机端工具栏" width="390">
+### 新建脑图
 
-## Markdown 结构模式
-
-| 模式 | 源文档格式 | 推荐用途 |
-| --- | --- | --- |
-| Heading | `#` 到 `######` | 六层以内、偏文档大纲的导图 |
-| Hybrid | 标题后接嵌套列表 | 超过六层且仍需保持文档可读性 |
-| List | 纯嵌套 Markdown 列表 | 手机端快速缩进编辑和深层结构 |
-
-当前模式保存在 `mindmap-structure`。缺少该字段时，Stratify 会自动判断笔记是纯标题、标题加列表还是纯列表。
+新文件会写入当前全局默认值和新增字段：
 
 ```yaml
 ---
 type: mindmap
 mindmap-structure: hybrid
-mindmap-layout: right
+mindmap-layout: balanced
 mindmap-theme: minimal
 mindmap-line: curve
 mindmap-node: rounded
+mindmap-default: mindmap
+mindmap-collapse-version: 2
+mindmap-collapsed: []
 ---
 
-# 项目
-## 调研
-### 资料来源
-#### 文献筛选
-##### 研究方法
-###### 证据
-- 原始研究
-  - 纳入文献
-    - 详细笔记
+# New
 ```
 
-## 非节点 Markdown 内容
+## 每篇笔记的默认视图
 
-标题和列表项会成为导图节点。普通段落、引用、代码块、表格和注释等其他 Markdown 不会被静默转换为节点或 comment，而是继续保留在源文档中。
+可在 frontmatter 中使用：
 
-第一个节点之前的内容作为文档级正文保留；节点之后的内容会附着在该节点上。节点右下角的橙色标记表示存在这类内容。桌面工具栏会显示对应的文件图标；手机端则在“编辑 Markdown”按钮上显示状态圆点。
+```yaml
+mindmap-default: mindmap
+```
 
-正常渲染、编辑节点和切换结构模式不会丢失这些内容。移动节点时，其附带正文会一起移动；删除节点时，附带正文也会作为同一次可撤销操作被删除。只有普通正文而没有标题或列表项的文档会显示空导图状态，但原 Markdown 保持不变。
+或：
 
-## 编辑操作
+```yaml
+mindmap-default: markdown
+```
 
-| 操作 | 手势或快捷键 |
-| --- | --- |
-| 选择节点 | 点击或使用普通方向键 |
-| 编辑文字 | 双击或 `F2` |
-| 新增同级节点 | `Enter` |
-| 新增子节点 | `Tab` |
-| 删除节点 | `Delete` 或 `Backspace` |
-| 折叠或展开 | `Space` |
-| 同级上下移动 | `Shift + ArrowUp/ArrowDown` |
-| 提升一级 | `Shift + Tab` 或 `Mod + ArrowLeft` |
-| 降为上一个同级节点的子节点 | `Mod + ArrowRight` |
-| 撤销 | `Mod + Z` |
-| 重做 | `Mod + Shift + Z` 或 `Mod + Y` |
+执行 **Obu Mindmap: Toggle default view** 可以切换当前笔记并立即应用。默认视图只在文件首次进入 Leaf、Leaf 切换文件或工作区重新装载时应用；后续扫描不会覆盖用户手动切换的视图。
 
-折叠状态通过给完整节点文字包裹一层单星号来保存，例如 `# *暂缓事项*`。因此，原本就采用这种写法的标题或列表项会被识别为折叠节点。
+设置页中的 **Default view for new mind maps** 用于新建文件和未设置 `mindmap-default` 的笔记。非法的逐篇值会安全回退到脑图视图。
 
-拖到目标节点上半区或下半区，会插入到目标前面或后面。拖到没有子节点的节点外侧，可以将其变成该节点的子节点；这一行为可在设置中关闭。
+## 新版折叠存储
 
-## 工具栏与设置
+版本 2 将折叠状态保存到 frontmatter：
 
-桌面端主工具栏保留 Mode、Layout、适应画布、缩放和编辑 Markdown。手机端使用位于系统安全区域和 Obsidian 顶部按钮下方的单行工具栏，保留 Mode、Layout、适应画布、编辑 Markdown 和更多选项，按钮触控区域为 44 像素；缩放移入全宽选项面板。选项面板会用名称和色块展示所有主题，下面是连线、节点形状、手机端缩放和 PNG 导出。桌面端和移动端都会把导出的图片保存在源笔记旁，文件名为 `<笔记名>.mindmap.png`。
+```yaml
+mindmap-collapse-version: 2
+mindmap-collapsed:
+  - 项目%2F计划[1]/系统设计[1]
+```
 
-Obsidian 设置页面可指定新导图的默认结构、布局、主题、连线和节点样式，也可以调整全局节点字号、方向键导航与叶节点拖拽行为。修改默认值不会覆盖已有笔记的 frontmatter。
+正文保持标准 Markdown：
 
-## 新建与转换
+```markdown
+# 项目/计划
 
-- 使用左侧 ribbon 或命令面板中的 **Convert current note to mind map**。
-- 右键 Markdown 文件并选择 **Convert to Stratify mind map**。
-- 右键文件夹并选择 **Create Stratify mind map**。
+## 系统设计
 
-转换只添加所需 frontmatter 并识别正文结构，不会重写原正文。
+### 后端
+```
+
+路径由祖先标题和同名兄弟序号组成，特殊字符会编码。失效路径会被忽略，不会模糊匹配到其他节点。
+
+分支节点显示：
+
+- 展开时为 `−`
+- 折叠时为 `+`
+- 没有子节点时不显示按钮
+
+可以点击按钮、按 `Space` 或使用右键菜单。编辑折叠分支、向折叠分支拖入子节点时会自动展开。
+
+## 迁移旧折叠标记
+
+旧版 Stratify 笔记可能这样保存折叠：
+
+```markdown
+## *需求分析*
+```
+
+这些笔记无需转换即可打开。需要升级当前笔记时，执行 **Obu Mindmap: Migrate legacy collapse markers**。该命令会：
+
+1. 识别旧标题和列表折叠标记；
+2. 写入 `mindmap-collapse-version: 2` 和 `mindmap-collapsed`；
+3. 只删除外围的旧折叠星号；
+4. 记录一个完整的 Undo/Redo 快照；
+5. 提示迁移节点数量。
+
+插件不会静默迁移旧文件。在版本 2 文件中，`*斜体文本*` 只表示正常 Markdown 斜体，不表示折叠。
+
+## 导出纯净 Markdown
+
+执行 **Obu Mindmap: Export clean Markdown**，会在原笔记同目录生成标准 Markdown 副本。
+
+- 删除完整 frontmatter，包括 `type`、`mindmap-*`、标签、别名和自定义属性；
+- 保留全部正文，包括折叠隐藏的子节点、段落、链接、代码块、表格、引用和空行；
+- 不修改原文件；
+- 永不覆盖已有文件。
+
+插件会选择第一个可用名称：
+
+```text
+项目-clean.md
+项目-clean-2.md
+项目-clean-3.md
+```
+
+导出文件不包含 Obu 专用标记，可用于幕布等 Markdown 工具。为了获得清晰层级，建议导出前使用 Heading 模式或规范的嵌套列表。
+
+## 从 Stratify Mindmap 迁移
+
+1. 禁用 Stratify Mindmap。
+2. 安装并启用 Obu Mindmap。
+3. 直接打开现有 `type: mindmap` 笔记。
+4. 重新设置一次需要的全局默认值。
+5. 如有需要，对旧文件逐篇执行折叠迁移命令。
+
+每篇笔记的结构、布局、主题、连接线和节点样式仍保存在 Markdown 中。全局设置因插件 ID 不同而独立保存，不会自动复制。
+
+不要同时启用 Obu Mindmap 与 Stratify Mindmap，因为二者都会处理相同的 `type: mindmap` 笔记。
 
 ## 安装
 
-在 Obsidian 中打开 **设置 -> 社区插件 -> 浏览**，搜索并安装 **Stratify Mindmap**。
+### 使用 Release
 
-也可以从 GitHub Release 手动安装：
+1. 从 Obu Mindmap Release 下载 `main.js`、`manifest.json`、`styles.css`。
+2. 新建 `<vault>/.obsidian/plugins/obu-mindmap/`。
+3. 将三个文件复制到该目录。
+4. 重新加载 Obsidian。
+5. 在 **设置 → 社区插件** 中启用 **Obu Mindmap**。
 
-1. 新建 `<vault>/.obsidian/plugins/stratify-mindmap/`。
-2. 下载 Release 中的 `main.js`、`manifest.json`、`styles.css`，并放入该目录。
-3. 重新加载 Obsidian。
-4. 在 **设置 -> 社区插件** 中启用 **Stratify Mindmap**。
+### 从源码构建
 
-不要同时启用 Stratify Mindmap 与 Light Mindmap/Light Mindmap Plus，因为它们都会渲染 `type: mindmap` 笔记。
+```bash
+npm ci
+npm run build
+```
 
-## 从 Light Mindmap 迁移
-
-Stratify 保留了 `type: mindmap` 和现有 `mindmap-*` frontmatter，因此旧导图无需转换。由于插件 ID 已改变，插件级设置会单独保存；迁移一次默认设置后即可停用旧插件。
-
-## 兼容性
-
-- Obsidian 1.8.7 或更高版本
-- 支持 macOS、Windows、Linux、iOS 和 Android
-- 导图内容仍是 Markdown，因此兼容 Obsidian Sync
-
-## 隐私与网络
-
-Stratify Mindmap 完全在本地离线运行。它不会发起网络请求、收集遥测、展示广告、访问当前 Vault 以外的文件，也不包含自行更新机制。插件只会读取或写入思维导图笔记、用户主动导出的 PNG 文件和本地插件设置的内容。
-
-在节点编辑状态输入 `[[` 时，Wiki 链接自动补全会通过 Obsidian 的 `vault.getMarkdownFiles()` API 列出当前 Vault 中 Markdown 文件的路径和元数据，但不会读取这些笔记的正文。该列表只在内存中缓存最多 5 秒，插件不会保存或传输它。
+将 `main.js`、`manifest.json`、`styles.css` 复制到 `.obsidian/plugins/obu-mindmap/`。
 
 ## 开发
 
-仓库中的 TypeScript 源码位于 `src/`；生成的 `main.js` 只作为 GitHub Release 附件发布。
-
 ```bash
-npm install
-npm run check
+npm ci
+npm run dev
 ```
 
-`npm run check` 会依次运行 Obsidian 官方 ESLint 规则、回归测试、TypeScript 检查和生产构建。
+发布前执行：
 
-## 致谢与许可证
+```bash
+npm run check
+node scripts/verify-release.mjs
+```
 
-Stratify Mindmap 是 [Light Mindmap](https://github.com/ninglg/light-mindmap) 的独立衍生版本。原项目作者为 Light Ning；本项目保留原版权声明，并继续使用 MIT License。
+`npm run check` 会运行 ESLint、TypeScript 编译、生产构建、核心行为测试和插件回归测试。
 
-内置分类配色参考了 [Paul Tol 配色方案](https://sronpersonalpages.nl/~pault/)、[Tableau Classic 色板](https://help.tableau.com/current/pro/desktop/en-us/formatting_create_custom_colors.htm) 和 [ColorBrewer](https://colorbrewer2.org/)。
+## 隐私
+
+Obu Mindmap 完全在本地离线运行，不收集遥测、不展示广告、不访问当前 Vault 以外的文件，也不提供自建云服务。
+
+## Credits
+
+Obu Mindmap is based on Stratify Mindmap by Lywooye,
+which is derived from Light Mindmap by Light Ning.
+
+Obu-specific features and ongoing maintenance are provided by
+DesenbergChina.
+
+## License
+
+MIT。上游项目的版权声明继续保留在 [LICENSE](LICENSE) 中。
