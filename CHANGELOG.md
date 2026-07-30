@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.0
+
+- Established Obu Mindmap as an independent plugin with ID `obu-mindmap`, version 0.1.0, separate settings, and DesenbergChina release metadata.
+- Kept zero-conversion compatibility with Stratify `type: mindmap` notes and existing `mindmap-*` fields.
+- Added per-note Mind Map or Markdown default views with one-time leaf application.
+- Added collapse storage version 2 with encoded node paths, same-name sibling indexes, atomic snapshots, and standard Markdown italics.
+- Added accessible `+/-` branch controls while preserving Space, context-menu, edit-expand, and drag-expand interactions.
+- Added an explicit, undoable migration command for legacy collapse stars.
+- Added clean Markdown export with complete frontmatter removal and non-overwriting `-clean` file names.
+- Added core and plugin regression coverage for identity, lifecycle, folding, migration, export, persistence, layout, and mobile controls.
+
+## Upstream history
+
 ## 1.2.1
 
 - Restored reliable Markdown persistence by writing structured edits through Obsidian's Vault API and synchronizing the active editor buffer.

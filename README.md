@@ -1,166 +1,212 @@
-# Stratify Mindmap
+# Obu Mindmap
 
-**English** | [简体中文](https://github.com/Lywooye/stratify-mindmap/blob/main/README_zh-CN.md)
+**English** | [简体中文](README_zh-CN.md)
 
-Stratify Mindmap is a Markdown-native mind map plugin for Obsidian. It keeps the source readable on desktop and mobile while supporting structures deeper than Markdown's six heading levels.
+Obu Mindmap is a Markdown-native mind map plugin for Obsidian. It edits headings and nested lists as an interactive mind map while keeping the source readable, portable, and compatible with existing `type: mindmap` notes.
 
-The interface is deliberately compact: structure and layout stay in the main toolbar, common view controls use icons, and appearance/export options live in one menu.
-
-## What's New in 1.2.0
-
-- Restores mind map layout after Obsidian reloads or a background tab becomes visible.
-- Rejects invalid startup canvas dimensions instead of saving a broken near-zero zoom.
-- Refits automatically while the workspace is settling, without overriding later user pan or zoom.
+Obu Mindmap is based on Stratify Mindmap and keeps its Markdown data format. The plugin has its own ID, settings, installation directory, version, repository, and release channel.
 
 ## Highlights
 
-- Mind maps deeper than six levels
-- Heading, Hybrid, and List Markdown structure modes
-- Automatic source-format detection when converting existing notes
-- Direct node editing with Markdown write-back
-- Pointer-based drag and drop across parents and sibling positions
-- Arrow-key selection and keyboard restructuring
-- Undo and redo for map operations
-- Obsidian wikilinks, node collapse, multiple layouts, and PNG export
-- Visual theme picker with curated categorical color palettes
-- Configurable node font size and matching PNG export text
-- Automatic wrapping for long labels and a more compact layout
-- Source-only Markdown preservation indicators
-- Reliable layout recovery after workspace and tab restoration
-- Mobile toolbar below the system safe area and Obsidian view controls, with 44-pixel touch targets
+- Heading, Hybrid, and List structures
+- Balanced, left, right, tree, and radial layouts
+- Keyboard editing, navigation, drag-and-drop, links, and wiki links
+- Per-note default view: Mind Map or Markdown
+- Persistent node folding without consuming Markdown italic syntax
+- Visible, accessible `+/-` controls on every branch
+- Explicit migration for legacy `*collapsed node*` markers
+- Clean Markdown export with complete frontmatter removal
+- PNG export, themes, connector styles, and node styles
 - Desktop and mobile support
 
-## Interface Preview
+![Obu Mindmap desktop overview](assets/desktop-overview.png)
 
-The images below are interface previews of the current Stratify layout.
+## Markdown format
 
-### Mind Map Overview
+Obu Mindmap continues to identify notes with:
 
-![Stratify Mindmap desktop overview](https://raw.githubusercontent.com/Lywooye/stratify-mindmap/main/assets/desktop-overview.png)
+```yaml
+---
+type: mindmap
+---
+```
 
-### Appearance and Export Menu
+It also continues to read the existing fields:
 
-![Stratify Mindmap appearance and export menu](https://raw.githubusercontent.com/Lywooye/stratify-mindmap/main/assets/appearance-menu.png)
+```yaml
+mindmap-structure:
+mindmap-layout:
+mindmap-theme:
+mindmap-line:
+mindmap-node:
+```
 
-### Mobile Toolbar
+No `type: obu-mindmap` conversion is required.
 
-<img src="https://raw.githubusercontent.com/Lywooye/stratify-mindmap/main/assets/mobile-toolbar.png" alt="Stratify Mindmap mobile toolbar below the Dynamic Island safe area" width="390">
+### New mind maps
 
-## Markdown Structure Modes
-
-| Mode | Source | Recommended use |
-| --- | --- | --- |
-| Heading | `#` through `######` | Short document-style maps up to six levels |
-| Hybrid | Headings followed by nested lists | Deep maps that remain readable as documents |
-| List | Nested Markdown lists | Compact mobile editing and unrestricted practical depth |
-
-The selected mode is stored as `mindmap-structure`. When that field is missing, Stratify detects heading-only, heading-plus-list, or list-only content automatically.
+A newly created map contains the selected global defaults plus the new per-note fields:
 
 ```yaml
 ---
 type: mindmap
 mindmap-structure: hybrid
-mindmap-layout: right
+mindmap-layout: balanced
 mindmap-theme: minimal
 mindmap-line: curve
 mindmap-node: rounded
+mindmap-default: mindmap
+mindmap-collapse-version: 2
+mindmap-collapsed: []
 ---
 
-# Project
-## Research
-### Sources
-#### Review
-##### Methods
-###### Evidence
-- Primary studies
-  - Included papers
-    - Detailed notes
+# New
 ```
 
-## Markdown-only Content
+## Per-note default view
 
-Headings and list items become mind map nodes. Other Markdown, including ordinary paragraphs, blockquotes, code blocks, tables, and comments, remains in the source instead of being silently converted into nodes or comments.
+Use either:
 
-Content before the first node is preserved as document-level source. Content after a node stays attached to that node. An orange marker on a node indicates that source-only Markdown is present. The desktop toolbar shows a matching file-text button; on mobile, the Edit Markdown button carries the status marker instead.
+```yaml
+mindmap-default: mindmap
+```
 
-Normal rendering, node editing, and structure-mode conversion preserve this content. Moving a node also moves its attached source block. Deleting that node deletes the attached block as part of the same undoable operation. A document containing only source-only content renders an empty-map state while leaving the Markdown unchanged.
+or:
 
-## Editing
+```yaml
+mindmap-default: markdown
+```
 
-| Action | Gesture or shortcut |
-| --- | --- |
-| Select a node | Click or use plain arrow keys |
-| Edit text | Double-click or `F2` |
-| Add sibling | `Enter` |
-| Add child | `Tab` |
-| Delete | `Delete` or `Backspace` |
-| Collapse or expand | `Space` |
-| Reorder siblings | `Shift + ArrowUp/ArrowDown` |
-| Promote | `Shift + Tab` or `Mod + ArrowLeft` |
-| Demote | `Mod + ArrowRight` |
-| Undo | `Mod + Z` |
-| Redo | `Mod + Shift + Z` or `Mod + Y` |
+Run **Obu Mindmap: Toggle default view** to change the current note and immediately apply the result. The setting is applied once when a file enters a leaf or the leaf switches files; later scans do not override a manual view switch.
 
-Collapsed state is stored by wrapping the complete node label in single emphasis markers, for example `# *Deferred*`. A heading or list label written this way is therefore interpreted as a collapsed node.
+The **Default view for new mind maps** setting is used by new maps and notes without `mindmap-default`. An invalid per-note value safely falls back to Mind Map.
 
-Dragging onto the upper or lower part of a node inserts before or after it. Dropping on the outer edge of a leaf can make the dragged node its child; this behavior can be disabled in settings.
+## Persistent folding
 
-## Toolbar and Settings
+Version 2 stores folding in frontmatter:
 
-The desktop toolbar keeps Mode, Layout, Fit, Zoom, and Edit Markdown available. On mobile, a single top row keeps Mode, Layout, Fit, Edit Markdown, and options below both the system safe area and Obsidian's view controls, with 44-pixel touch targets; zoom moves into the full-width options panel. The options menu shows every theme as a named row of color swatches, followed by connector style, node shape, zoom on mobile, and PNG export. Exported images are saved beside the source note as `<note-name>.mindmap.png`, on both desktop and mobile.
+```yaml
+mindmap-collapse-version: 2
+mindmap-collapsed:
+  - Project%2FPlan[1]/Design[1]
+```
 
-The Obsidian settings page controls defaults for new or unconfigured maps, the global node font size, keyboard navigation, and leaf-node drop behavior. Existing frontmatter is not overwritten by changing defaults.
+The Markdown body remains standard:
 
-## Create or Convert a Mind Map
+```markdown
+# Project/Plan
 
-- Use the ribbon command or command palette action **Convert current note to mind map**.
-- Right-click a Markdown file and choose **Convert to Stratify mind map**.
-- Right-click a folder and choose **Create Stratify mind map**.
+## Design
 
-Conversion adds the required frontmatter and detects the source structure without rewriting the note body.
+### Backend
+```
+
+Paths include ancestor titles and same-name sibling numbers. Special path characters are encoded. Missing paths are ignored and never matched approximately.
+
+Each branch shows:
+
+- `−` when expanded
+- `+` when collapsed
+- no button when the node has no children
+
+Click the button, press `Space`, or use the context menu. Editing a collapsed branch or dropping a child into it expands it automatically.
+
+## Migrating legacy collapse markers
+
+Older Stratify notes may store folding as:
+
+```markdown
+## *Requirements*
+```
+
+They continue to open without conversion. Run **Obu Mindmap: Migrate legacy collapse markers** when you want to move that note to version 2. The command:
+
+1. detects old heading and list markers;
+2. writes `mindmap-collapse-version: 2` and `mindmap-collapsed`;
+3. removes only the outer legacy stars;
+4. records one complete Undo/Redo snapshot;
+5. reports the migrated node count.
+
+Migration is never performed silently. In a version 2 file, `*italic text*` is normal Markdown italics and does not mean “collapsed.”
+
+## Export clean Markdown
+
+Run **Obu Mindmap: Export clean Markdown** to create a standard Markdown copy beside the source note.
+
+- The complete frontmatter block is removed, including `type`, `mindmap-*`, tags, aliases, and custom properties.
+- The original body is preserved, including hidden descendants, paragraphs, links, code blocks, tables, quotes, and blank lines.
+- The source note is not modified.
+- Existing files are never overwritten.
+
+The first available name is selected:
+
+```text
+Project-clean.md
+Project-clean-2.md
+Project-clean-3.md
+```
+
+The exported file contains no Obu-specific marker and can be imported by Markdown tools such as Mubu (幕布). For the best hierarchy, use Heading mode or a regular nested-list structure before exporting.
+
+## Moving from Stratify Mindmap
+
+1. Disable Stratify Mindmap.
+2. Install and enable Obu Mindmap.
+3. Open the existing `type: mindmap` notes directly.
+4. Recreate the desired global defaults once.
+5. Optionally run the legacy collapse migration command per note.
+
+Per-note structure, layout, theme, line, and node fields remain in the Markdown file. Global settings are stored separately under the Obu plugin ID and are not copied automatically.
+
+Do not enable Obu Mindmap and Stratify Mindmap at the same time because both handle the same `type: mindmap` notes.
 
 ## Installation
 
-Install **Stratify Mindmap** from **Settings -> Community plugins -> Browse** in Obsidian.
+### From a release
 
-For manual installation from a GitHub release:
+1. Download `main.js`, `manifest.json`, and `styles.css` from an Obu Mindmap release.
+2. Create `<vault>/.obsidian/plugins/obu-mindmap/`.
+3. Copy the three files into that directory.
+4. Reload Obsidian.
+5. Enable **Obu Mindmap** under **Settings → Community plugins**.
 
-1. Create `<vault>/.obsidian/plugins/stratify-mindmap/`.
-2. Download the release assets `main.js`, `manifest.json`, and `styles.css` and place them in that directory.
-3. Reload Obsidian.
-4. Enable **Stratify Mindmap** under **Settings -> Community plugins**.
+### From source
 
-Do not enable Stratify Mindmap and Light Mindmap/Light Mindmap Plus at the same time because they render the same `type: mindmap` notes.
+```bash
+npm ci
+npm run build
+```
 
-## Migration from Light Mindmap
-
-Existing notes remain compatible because Stratify keeps `type: mindmap` and the existing `mindmap-*` frontmatter fields. The plugin ID is different, so plugin-level settings are stored separately; copy or recreate those defaults once, then disable the old plugin.
-
-## Compatibility
-
-- Obsidian 1.8.7 or later
-- macOS, Windows, Linux, iOS, and Android
-- Obsidian Sync-compatible because map content remains Markdown
-
-## Privacy and Network Use
-
-Stratify Mindmap works locally and offline. It does not make network requests, collect telemetry, display ads, access files outside the current vault, or implement its own update mechanism. It reads or writes file contents only for mind map notes, PNG exports requested by the user, and its local plugin settings.
-
-When you type `[[` while editing a node, the wiki-link autocomplete uses Obsidian's `vault.getMarkdownFiles()` API to list Markdown file paths and metadata in the current vault. It does not read the contents of those notes. The list is cached in memory for up to five seconds and is never transmitted or stored by the plugin.
+Copy `main.js`, `manifest.json`, and `styles.css` into `.obsidian/plugins/obu-mindmap/`.
 
 ## Development
 
-The repository contains TypeScript source in `src/`; the generated `main.js` is attached only to GitHub releases.
-
 ```bash
-npm install
-npm run check
+npm ci
+npm run dev
 ```
 
-`npm run check` runs the official Obsidian ESLint rules, regression tests, TypeScript validation, and the production build.
+Before releasing:
 
-## Credits and License
+```bash
+npm run check
+node scripts/verify-release.mjs
+```
 
-Stratify Mindmap is an independent derivative of [Light Mindmap](https://github.com/ninglg/light-mindmap) by Light Ning. It retains the original copyright notice and is distributed under the MIT License.
+`npm run check` runs ESLint, TypeScript compilation, the production build, core behavior tests, and plugin regression tests.
 
-The built-in categorical palettes reference [Paul Tol's color schemes](https://sronpersonalpages.nl/~pault/), [Tableau Classic palettes](https://help.tableau.com/current/pro/desktop/en-us/formatting_create_custom_colors.htm), and [ColorBrewer](https://colorbrewer2.org/).
+## Privacy
+
+Obu Mindmap works locally and offline. It does not collect telemetry, display ads, access files outside the current vault, or provide its own cloud service.
+
+## Credits
+
+Obu Mindmap is based on Stratify Mindmap by Lywooye,
+which is derived from Light Mindmap by Light Ning.
+
+Obu-specific features and ongoing maintenance are provided by
+DesenbergChina.
+
+## License
+
+MIT. Existing upstream copyright notices are retained in [LICENSE](LICENSE).

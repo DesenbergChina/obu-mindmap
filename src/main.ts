@@ -446,7 +446,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       const zh = this._isZh();
       if (file instanceof obsidian.TFolder) {
         menu.addItem((item) => {
-          const title = zh ? '新建 Stratify 导图' : 'Create Stratify mind map';
+          const title = zh ? '新建 Obu 导图' : 'Create Obu mind map';
           item
             .setTitle(title)
             .setIcon('network')
@@ -464,7 +464,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
         });
       } else if (file instanceof obsidian.TFile && file.extension === 'md') {
         menu.addItem((item) => {
-          const title = zh ? '转换为 Stratify 导图' : 'Convert to Stratify mind map';
+          const title = zh ? '转换为 Obu 导图' : 'Convert to Obu mind map';
           item
             .setTitle(title)
             .setIcon('network')
@@ -807,7 +807,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       new obsidian.Notice('Converted to mindmap (' + label + ' mode).');
       this._scan();
     } catch (error: unknown) {
-      console.error('[StratifyMindmap] convert error', error);
+      console.error('[ObuMindmap] convert error', error);
       new obsidian.Notice('Failed to convert note to mindmap: ' + errorMessage(error));
     }
   }
@@ -906,7 +906,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
         try {
           this._render(overlay, content, fm, file.basename, view, file);
         } catch (error: unknown) {
-          console.error('[StratifyMindmap] render error', error);
+          console.error('[ObuMindmap] render error', error);
           overlay.empty();
           overlay.createDiv({ cls: 'stratify-empty', text: 'Mind map render error: ' + errorMessage(error) });
         }
@@ -1490,7 +1490,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
         if (isRecord(frontmatter)) frontmatter[key] = value;
       });
     } catch (error: unknown) {
-      console.error('[StratifyMindmap] frontmatter persist error', error);
+      console.error('[ObuMindmap] frontmatter persist error', error);
     }
   }
 
@@ -1507,7 +1507,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
         }
       });
     } catch (error: unknown) {
-      console.error('[StratifyMindmap] frontmatter batch persist error', error);
+      console.error('[ObuMindmap] frontmatter batch persist error', error);
     }
   }
 
@@ -1630,7 +1630,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
         await this._writeMindmapContent(overlay, newContent);
         this._render(overlay, newContent, nextFrontmatter, fileBasename, view, file);
       } catch (error: unknown) {
-        console.error('[StratifyMindmap] structure mode persist error', error);
+        console.error('[ObuMindmap] structure mode persist error', error);
         new obsidian.Notice('Failed to change mindmap mode: ' + errorMessage(error));
       } finally {
         (overlay.ownerDocument.defaultView || window).requestAnimationFrame(() => {
@@ -2313,7 +2313,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       new obsidian.Notice(this._isZh() ? '已回退上一步导图操作' : 'Undid last mindmap action');
       return true;
     } catch (error: unknown) {
-      console.error('[StratifyMindmap] undo error', error);
+      console.error('[ObuMindmap] undo error', error);
       new obsidian.Notice('Failed to undo mindmap action: ' + errorMessage(error));
       return false;
     } finally {
@@ -2347,7 +2347,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       new obsidian.Notice(this._isZh() ? '已重做导图操作' : 'Redid mindmap action');
       return true;
     } catch (error: unknown) {
-      console.error('[StratifyMindmap] redo error', error);
+      console.error('[ObuMindmap] redo error', error);
       new obsidian.Notice('Failed to redo mindmap action: ' + errorMessage(error));
       return false;
     } finally {
@@ -3069,7 +3069,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       });
     }).catch((error: unknown) => {
       overlay._stratifyWriting = false;
-      console.error('[StratifyMindmap] collapse persist error', error);
+      console.error('[ObuMindmap] collapse persist error', error);
     });
   }
 
@@ -3282,7 +3282,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     try {
       await this._queueMindmapWrite(overlay, content);
     } catch (error: unknown) {
-      console.error('[StratifyMindmap] autosave error', error);
+      console.error('[ObuMindmap] autosave error', error);
       new obsidian.Notice('Failed to save mindmap: ' + errorMessage(error));
     }
   }
@@ -3313,7 +3313,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     try {
       await this._queueMindmapWrite(overlay, newContent);
     } catch (error: unknown) {
-      console.error('[StratifyMindmap] persist error', error);
+      console.error('[ObuMindmap] persist error', error);
       new obsidian.Notice('Failed to save mindmap: ' + errorMessage(error));
     }
   }
@@ -4539,7 +4539,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       const exportedPath = await this._savePngToVault(file, arrayBuffer);
       new obsidian.Notice('Mind map exported to ' + exportedPath);
     } catch (error: unknown) {
-      console.error('[StratifyMindmap] export error:', error);
+      console.error('[ObuMindmap] export error:', error);
       new obsidian.Notice('Export failed: ' + errorMessage(error));
     }
   }
