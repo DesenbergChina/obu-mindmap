@@ -33,4 +33,82 @@ const markdown = loadTypeScript('src/markdown-file.ts');
 assert.equal(collapse.COLLAPSE_VERSION, 2);
 assert.equal(typeof markdown.stripLeadingFrontmatter, 'function');
 
-console.log('Core identity and module tests passed');
+const repeatedTree = {
+  virtualRoot: false,
+  tree: {
+    rawText: '项目/计划',
+    text: '项目/计划',
+    collapsed: false,
+    children: [
+      { rawText: '测试', text: '测试', collapsed: true, children: [] },
+      { rawText: '测试', text: '测试', collapsed: true, children: [] },
+      { rawText: 'A[B]\\C%', text: 'A[B]\\C%', collapsed: true, children: [] },
+    ],
+  },
+};
+
+assert.deepEqual(collapse.collectCollapsedPaths(repeatedTree), [
+  '%E9%A1%B9%E7%9B%AE%2F%E8%AE%A1%E5%88%92[1]/%E6%B5%8B%E8%AF%95[1]',
+  '%E9%A1%B9%E7%9B%AE%2F%E8%AE%A1%E5%88%92[1]/%E6%B5%8B%E8%AF%95[2]',
+  '%E9%A1%B9%E7%9B%AE%2F%E8%AE%A1%E5%88%92[1]/A%5BB%5D%5CC%25[1]',
+]);
+
+repeatedTree.tree.children.forEach((node) => {
+  node.collapsed = false;
+});
+assert.equal(collapse.applyCollapsedPaths(repeatedTree, [
+  '%E9%A1%B9%E7%9B%AE%2F%E8%AE%A1%E5%88%92[1]/%E6%B5%8B%E8%AF%95[2]',
+  'missing[1]',
+  42,
+]), 1);
+assert.deepEqual(
+  repeatedTree.tree.children.map((node) => node.collapsed),
+  [false, true, false]
+);
+
+const virtualTree = {
+  virtualRoot: true,
+  tree: {
+    rawText: '文件名',
+    text: '文件名',
+    collapsed: false,
+    isVirtual: true,
+    children: [
+      {
+        rawText: 'Cafe\u0301',
+        text: 'Cafe\u0301',
+        collapsed: true,
+        children: [],
+      },
+    ],
+  },
+};
+assert.deepEqual(collapse.collectCollapsedPaths(virtualTree), ['Caf%C3%A9[1]']);
+
+assert.deepEqual(collapse.parseLegacyCollapseMarker('*需求分析*', true), {
+  rawText: '需求分析',
+  collapsed: true,
+});
+assert.deepEqual(collapse.parseLegacyCollapseMarker('**粗体**', true), {
+  rawText: '**粗体**',
+  collapsed: false,
+});
+assert.deepEqual(collapse.parseLegacyCollapseMarker('*正常斜体*', false), {
+  rawText: '*正常斜体*',
+  collapsed: false,
+});
+
+assert.equal(
+  markdown.stripLeadingFrontmatter('---\ntype: mindmap\n---\n# 标题\n\n```yaml\n---\n```'),
+  '# 标题\n\n```yaml\n---\n```'
+);
+assert.equal(markdown.stripLeadingFrontmatter('# 无属性\n'), '# 无属性\n');
+
+const occupied = new Set(['Maps/项目-clean.md', 'Maps/项目-clean-2.md']);
+assert.equal(
+  markdown.nextCleanMarkdownPath('Maps/项目.md', (candidate) => occupied.has(candidate)),
+  'Maps/项目-clean-3.md'
+);
+assert.equal(markdown.nextCleanMarkdownPath('Root.md', () => false), 'Root-clean.md');
+
+console.log('Core identity, collapse path, and module tests passed');
