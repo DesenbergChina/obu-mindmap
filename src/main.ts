@@ -5,6 +5,7 @@ import {
   collectCollapsedPaths,
   parseLegacyCollapseMarker,
 } from './collapse-state';
+import { nextCleanMarkdownPath, stripLeadingFrontmatter } from './markdown-file';
 
 type ThemeId = 'minimal' | 'vibrant' | 'classic' | 'fresh' | 'ocean' | 'sunset' | 'midnight' | 'slate';
 type LineStyleId = 'curve' | 'straight' | 'polyline' | 'polyline-dashed' | 'curve-dashed';
@@ -418,6 +419,12 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     });
 
     this.addCommand({
+      id: 'export-clean-markdown',
+      name: 'Export clean Markdown',
+      callback: () => void this._exportCleanMarkdown()
+    });
+
+    this.addCommand({
       id: 'cycle-layout',
       name: 'Cycle mind map layout',
       callback: () => {
@@ -653,6 +660,30 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     } catch (error: unknown) {
       console.error('[ObuMindmap] legacy collapse migration error', error);
       new obsidian.Notice('Failed to migrate legacy collapse markers: ' + errorMessage(error));
+    }
+  }
+
+  async _exportCleanMarkdown(): Promise<void> {
+    const view = this.app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    const file = view?.file;
+    if (!view || !file || file.extension !== 'md') {
+      new obsidian.Notice('Open a Markdown note before exporting clean Markdown.');
+      return;
+    }
+    try {
+      const content = view.editor ? view.editor.getValue() : await this._readFileContent(file);
+      const cleanMarkdown = stripLeadingFrontmatter(content);
+      const targetPath = nextCleanMarkdownPath(
+        file.path,
+        (candidate) => Boolean(this.app.vault.getAbstractFileByPath(candidate))
+      );
+      const created = await this.app.vault.create(targetPath, cleanMarkdown);
+      await this.app.workspace.openLinkText(created.path, '', true);
+      const exportedName = targetPath.slice(targetPath.lastIndexOf('/') + 1);
+      new obsidian.Notice('Exported clean Markdown: ' + exportedName);
+    } catch (error: unknown) {
+      console.error('[ObuMindmap] clean Markdown export error', error);
+      new obsidian.Notice('Failed to export clean Markdown: ' + errorMessage(error));
     }
   }
 
