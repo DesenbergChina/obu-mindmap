@@ -59,6 +59,7 @@ Module._load = function (request, parent, isMain) {
     MarkdownView: MockMarkdownView,
     Notice: MockNotice,
     Platform: mockPlatform,
+    getLanguage: () => 'en',
     parseYaml,
     stringifyYaml,
   };
@@ -377,6 +378,91 @@ async function run() {
   assert.strictEqual(activeFrontmatter['mindmap-default'], 'mindmap');
   assert.ok(!overlayClasses.has('stratify-hidden'));
   assert.strictEqual(notices.at(-1), 'Default view set to Mind Map');
+
+  const legacyFile = { path: 'Maps/Legacy.md', basename: 'Legacy' };
+  const legacyContent = [
+    '---',
+    'type: mindmap',
+    'mindmap-structure: hybrid',
+    '---',
+    '# Root',
+    '## *需求分析*',
+    '- *后端*',
+    '',
+  ].join('\n');
+  let legacyDiskValue = legacyContent;
+  let legacyEditorValue = legacyContent;
+  let legacyWriteCount = 0;
+  const legacyView = Object.assign(new MockMarkdownView(), {
+    file: legacyFile,
+    editor: {
+      getValue: () => legacyEditorValue,
+      setValue: (value) => {
+        legacyEditorValue = value;
+      },
+    },
+  });
+  const legacyParsedForOverlay = plugin._parseStructured(legacyContent, 'hybrid');
+  const legacyOverlay = {
+    _stratifyFile: legacyFile,
+    _stratifyView: legacyView,
+    _stratifyParsed: legacyParsedForOverlay,
+    _stratifyTreeInfo: plugin._buildTree(legacyParsedForOverlay, legacyFile.basename),
+    _stratifyStructure: 'hybrid',
+    _stratifyFrontmatter: plugin._splitFrontmatter(legacyContent).frontmatter,
+    _stratifyUndoStack: [],
+    _stratifyRedoStack: [],
+    _stratifySelected: null,
+    _stratifyPendingEdit: null,
+    _stratifyWriting: false,
+    ownerDocument: {
+      defaultView: { requestAnimationFrame: (callback) => callback() },
+    },
+  };
+  legacyView.contentEl = {
+    querySelector: () => legacyOverlay,
+    addClass: () => {},
+    removeClass: () => {},
+  };
+  const activeViewBeforeMigration = plugin.app.workspace.getActiveViewOfType;
+  const modifyBeforeMigration = plugin.app.vault.modify;
+  plugin.app.workspace.getActiveViewOfType = () => legacyView;
+  plugin.app.vault.modify = async (target, content) => {
+    assert.strictEqual(target, legacyFile);
+    legacyDiskValue = content;
+    legacyWriteCount += 1;
+  };
+  notices.length = 0;
+  await plugin._migrateLegacyCollapseMarkers();
+  assert.match(legacyDiskValue, /mindmap-collapse-version: 2/);
+  assert.doesNotMatch(plugin._splitFrontmatter(legacyDiskValue).body, /\*需求分析\*/);
+  assert.doesNotMatch(plugin._splitFrontmatter(legacyDiskValue).body, /\*后端\*/);
+  const migratedParsed = plugin._parseStructured(legacyDiskValue, 'hybrid');
+  const migratedTree = plugin._buildTree(migratedParsed, legacyFile.basename);
+  const migratedNodes = [];
+  const collectMigratedNodes = (node) => {
+    if (!node) return;
+    migratedNodes.push(node);
+    node.children.forEach(collectMigratedNodes);
+  };
+  collectMigratedNodes(migratedTree.tree);
+  assert.strictEqual(migratedNodes.filter((node) => node.collapsed).length, 2);
+  assert.strictEqual(notices.at(-1), 'Migrated 2 legacy collapsed nodes');
+  assert.strictEqual(legacyOverlay._stratifyUndoStack[0], legacyContent);
+
+  const writesAfterMigration = legacyWriteCount;
+  await plugin._migrateLegacyCollapseMarkers();
+  assert.strictEqual(legacyWriteCount, writesAfterMigration);
+  assert.strictEqual(notices.at(-1), 'This mind map already uses collapse storage version 2');
+
+  await plugin._undoMindmap(legacyOverlay);
+  assert.strictEqual(legacyDiskValue, legacyContent);
+  await plugin._redoMindmap(legacyOverlay);
+  assert.match(legacyDiskValue, /mindmap-collapse-version: 2/);
+
+  plugin.app.workspace.getActiveViewOfType = activeViewBeforeMigration;
+  plugin.app.vault.modify = modifyBeforeMigration;
+  renderedContents.length = 0;
 
   editorReadCount = 0;
   vaultReadCount = 0;
