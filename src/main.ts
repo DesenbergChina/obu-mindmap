@@ -595,7 +595,11 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       new obsidian.Notice('Open a mind map before changing its default view.');
       return;
     }
-    const configured = overlay._stratifyFrontmatter?.['mindmap-default'];
+    const cachedFrontmatter: unknown = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    const fallbackFrontmatter = isRecord(cachedFrontmatter) ? cachedFrontmatter : null;
+    const configured = overlay._stratifyFrontmatter
+      ? overlay._stratifyFrontmatter['mindmap-default']
+      : fallbackFrontmatter?.['mindmap-default'];
     const next: DefaultView = configured === 'markdown' ? 'mindmap' : 'markdown';
     if (next === 'markdown') await this._commitActiveEdit(overlay, false);
     try {
@@ -646,7 +650,12 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       countCollapsed(treeInfo.tree);
 
       this._pushUndoSnapshot(overlay, content);
-      const migratedContent = this._serializeMindmap(parsed, treeInfo, structure, true);
+      const cleanedContent = this._removeLegacyCollapseMarkers(content, parsed);
+      const migratedContent = this._withFrontmatterUpdates(cleanedContent, {
+        'mindmap-structure': structure,
+        'mindmap-collapse-version': COLLAPSE_VERSION,
+        'mindmap-collapsed': collectCollapsedPaths(treeInfo),
+      });
       await this._queueMindmapWrite(overlay, migratedContent);
       overlay._stratifyLastContent = migratedContent;
       overlay._stratifyParsed = this._parseStructured(migratedContent, structure);
@@ -671,6 +680,8 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       return;
     }
     try {
+      const overlay = view.contentEl.querySelector<StratifyOverlayElement>(':scope > .stratify-overlay');
+      if (overlay) await this._commitActiveEdit(overlay, false);
       const content = view.editor ? view.editor.getValue() : await this._readFileContent(file);
       const cleanMarkdown = stripLeadingFrontmatter(content);
       const targetPath = nextCleanMarkdownPath(
@@ -783,6 +794,8 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     try {
       const content = await this._readFileContent(file);
       const parsedFrontmatter = this._splitFrontmatter(content).frontmatter;
+      const alreadyMindmap = typeof parsedFrontmatter?.type === 'string' &&
+        parsedFrontmatter.type.toLowerCase() === 'mindmap';
       const structure = this._readStructureFromFrontmatter(parsedFrontmatter) || this._detectStructureMode(content);
       await this.app.fileManager.processFrontMatter(file, (value: unknown) => {
         if (!isRecord(value)) return;
@@ -797,8 +810,10 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
         if (fm['mindmap-default'] !== 'mindmap' && fm['mindmap-default'] !== 'markdown') {
           fm['mindmap-default'] = this._defaultView();
         }
-        fm['mindmap-collapse-version'] = 2;
-        if (!Array.isArray(fm['mindmap-collapsed'])) fm['mindmap-collapsed'] = [];
+        if (!alreadyMindmap) {
+          fm['mindmap-collapse-version'] = COLLAPSE_VERSION;
+          if (!Array.isArray(fm['mindmap-collapsed'])) fm['mindmap-collapsed'] = [];
+        }
       });
       if (openAfter) {
         await this.app.workspace.openLinkText(file.path, '', true);
@@ -951,6 +966,27 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     const yaml = obsidian.stringifyYaml(frontmatter).trimEnd();
     const bodyPrefix = split.frontmatterRaw ? '' : '\n';
     return '---\n' + yaml + '\n---\n' + bodyPrefix + split.body;
+  }
+
+  _removeLegacyCollapseMarkers(content: string, parsed: ParsedMindmap): string {
+    const split = this._splitFrontmatter(content);
+    const lines = split.body.split('\n');
+    for (const node of parsed.headings) {
+      if (!node.collapsed || node.srcIdx === undefined) continue;
+      const line = lines[node.srcIdx];
+      if (node.kind === 'heading') {
+        lines[node.srcIdx] = line.replace(
+          /^((?:#{1,6})\s+)\*(?!\*)(.+)\*(?!\*)(\s*#*\s*\r?)$/,
+          '$1$2$3'
+        );
+      } else if (node.kind === 'list') {
+        lines[node.srcIdx] = line.replace(
+          /^(\s*(?:[-*+]|\d+[.)])\s+)\*(?!\*)(.+)\*(?!\*)(\s*\r?)$/,
+          '$1$2$3'
+        );
+      }
+    }
+    return split.frontmatterRaw + lines.join('\n');
   }
 
   _stripInline(text: string): string {
@@ -2004,6 +2040,9 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       event.stopPropagation();
     };
     button.addEventListener('pointerdown', stopButtonEvent);
+    button.addEventListener('mousedown', stopButtonEvent);
+    button.addEventListener('dblclick', stopButtonEvent);
+    button.addEventListener('contextmenu', stopButtonEvent);
     button.addEventListener('click', (event) => {
       stopButtonEvent(event);
       this._toggleCollapse(overlay, node);
