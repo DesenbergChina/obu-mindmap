@@ -464,6 +464,60 @@ async function run() {
   plugin.app.vault.modify = modifyBeforeMigration;
   renderedContents.length = 0;
 
+  const exportFile = { path: 'Maps/项目.md', basename: '项目', extension: 'md' };
+  const exportSource = [
+    '---',
+    'type: mindmap',
+    'mindmap-collapse-version: 2',
+    'mindmap-collapsed:',
+    '  - 项目[1]/需求[1]',
+    'tags:',
+    '  - 项目',
+    '---',
+    '# 项目',
+    '',
+    '## 需求',
+    '',
+    '```yaml',
+    '---',
+    '```',
+  ].join('\n');
+  const exportView = Object.assign(new MockMarkdownView(), {
+    file: exportFile,
+    editor: { getValue: () => exportSource },
+  });
+  let createdPath = null;
+  let createdContent = null;
+  let openedPath = null;
+  const getActiveBeforeExport = plugin.app.workspace.getActiveViewOfType;
+  const openLinkBeforeExport = plugin.app.workspace.openLinkText;
+  const getAbstractBeforeExport = plugin.app.vault.getAbstractFileByPath;
+  const createBeforeExport = plugin.app.vault.create;
+  plugin.app.workspace.getActiveViewOfType = () => exportView;
+  plugin.app.workspace.openLinkText = async (pathToOpen) => {
+    openedPath = pathToOpen;
+  };
+  plugin.app.vault.getAbstractFileByPath = (candidate) => (
+    candidate === 'Maps/项目-clean.md' ? { path: candidate } : null
+  );
+  plugin.app.vault.create = async (pathToCreate, contentToCreate) => {
+    createdPath = pathToCreate;
+    createdContent = contentToCreate;
+    return { path: pathToCreate };
+  };
+  const sourceBeforeExport = diskValue;
+  notices.length = 0;
+  await plugin._exportCleanMarkdown();
+  assert.strictEqual(createdPath, 'Maps/项目-clean-2.md');
+  assert.strictEqual(createdContent, '# 项目\n\n## 需求\n\n```yaml\n---\n```');
+  assert.strictEqual(diskValue, sourceBeforeExport);
+  assert.strictEqual(openedPath, createdPath);
+  assert.strictEqual(notices.at(-1), 'Exported clean Markdown: 项目-clean-2.md');
+  plugin.app.workspace.getActiveViewOfType = getActiveBeforeExport;
+  plugin.app.workspace.openLinkText = openLinkBeforeExport;
+  plugin.app.vault.getAbstractFileByPath = getAbstractBeforeExport;
+  plugin.app.vault.create = createBeforeExport;
+
   editorReadCount = 0;
   vaultReadCount = 0;
   mockPlatform.isMobile = true;
