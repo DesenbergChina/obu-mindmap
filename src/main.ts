@@ -1,4 +1,10 @@
 import * as obsidian from 'obsidian';
+import {
+  applyCollapsedPaths,
+  COLLAPSE_VERSION,
+  collectCollapsedPaths,
+  parseLegacyCollapseMarker,
+} from './collapse-state';
 
 type ThemeId = 'minimal' | 'vibrant' | 'classic' | 'fresh' | 'ocean' | 'sunset' | 'midnight' | 'slate';
 type LineStyleId = 'curve' | 'straight' | 'polyline' | 'polyline-dashed' | 'curve-dashed';
@@ -76,6 +82,8 @@ interface ParsedMindmap {
   preBody: string;
   headings: MindmapNode[];
   structureMode: StructureMode;
+  collapseV2: boolean;
+  collapsedPaths: unknown;
 }
 
 interface TreeInfo {
@@ -847,6 +855,11 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     return { frontmatterRaw: m[0], frontmatter: parsed, body: content.slice(m[0].length) };
   }
 
+  _usesCollapseV2(frontmatter: Frontmatter | null): boolean {
+    const value = frontmatter?.['mindmap-collapse-version'];
+    return value === COLLAPSE_VERSION || value === String(COLLAPSE_VERSION);
+  }
+
   _withFrontmatterUpdates(content: string, updates: Frontmatter): string {
     const split = this._splitFrontmatter(content);
     const frontmatter: Frontmatter = Object.assign({}, split.frontmatter || {}, updates);
@@ -974,7 +987,9 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
 
   _parseStructured(content: string, structureMode: unknown): ParsedMindmap {
     const mode = this._normalizeStructureMode(structureMode) || this._defaultStructure();
-    const { frontmatterRaw, body } = this._splitFrontmatter(content);
+    const { frontmatterRaw, frontmatter, body } = this._splitFrontmatter(content);
+    const collapseV2 = this._usesCollapseV2(frontmatter);
+    const collapsedPaths = frontmatter?.['mindmap-collapsed'];
     const lines = body.split('\n');
     const headingRe = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
     const listRe = /^(\s*)([-*+]|\d+[.)])\s+(.+?)\s*$/;
@@ -995,15 +1010,16 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       if (inFence) continue;
       const m = mode !== 'list' ? line.match(headingRe) : null;
       if (m) {
-        const rawText = m[2].trim();
-        const collapsed = /^\*(?!\*)(.+)\*(?!\*)$/.test(rawText);
+        const marker = parseLegacyCollapseMarker(m[2].trim(), !collapseV2);
+        const rawText = marker.rawText;
+        const collapsed = marker.collapsed;
         currentHeadingLevel = m[1].length;
         listStack.length = 0;
         headings.push({
           srcIdx: i,
           kind: 'heading',
           level: m[1].length,
-          rawText: collapsed ? rawText.replace(/^\*(?!\*)(.+)\*(?!\*)$/, '$1') : rawText,
+          rawText,
           text: this._stripInline(rawText),
           children: [],
           parent: null,
@@ -1031,13 +1047,14 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
         const baseLevel = mode === 'hybrid' ? currentHeadingLevel : 0;
         const parentLevel = listStack.length ? listStack[listStack.length - 1].level : baseLevel;
         const level = parentLevel + 1;
-        const rawText = lm[3].trim();
-        const collapsed = /^\*(?!\*)(.+)\*(?!\*)$/.test(rawText);
+        const marker = parseLegacyCollapseMarker(lm[3].trim(), !collapseV2);
+        const rawText = marker.rawText;
+        const collapsed = marker.collapsed;
         headings.push({
           srcIdx: i,
           kind: 'list',
           level,
-          rawText: collapsed ? rawText.replace(/^\*(?!\*)(.+)\*(?!\*)$/, '$1') : rawText,
+          rawText,
           text: this._stripInline(rawText),
           children: [],
           parent: null,
@@ -1066,7 +1083,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       headings[i].bodyRaw = lines.slice(start, end).join('\n');
       if (i + 1 < headings.length && end > start) headings[i].bodyRaw += '\n';
     }
-    return { frontmatterRaw, preBody, headings, structureMode: mode };
+    return { frontmatterRaw, preBody, headings, structureMode: mode, collapseV2, collapsedPaths };
   }
 
   _hasSourceOnlyContent(parsed: ParsedMindmap | null | undefined): boolean {
@@ -1130,7 +1147,9 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       }
     }
 
-    return { tree, virtualRoot, baseLevel };
+    const treeInfo = { tree, virtualRoot, baseLevel };
+    if (parsed.collapseV2) applyCollapsedPaths(treeInfo, parsed.collapsedPaths);
+    return treeInfo;
   }
 
   // ────────────────────────────────────────────────────────────────
@@ -1140,8 +1159,14 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
   // are preserved verbatim.
   // ────────────────────────────────────────────────────────────────
 
-  _serialize(parsed: ParsedMindmap, treeInfo: TreeInfo, structureMode: unknown): string {
+  _serialize(
+    parsed: ParsedMindmap,
+    treeInfo: TreeInfo,
+    structureMode: unknown,
+    forceCollapseV2 = false
+  ): string {
     const mode = this._normalizeStructureMode(structureMode) || parsed.structureMode || this._defaultStructure();
+    const collapseV2 = forceCollapseV2 || parsed.collapseV2;
     let out = parsed.frontmatterRaw;
     if (parsed.preBody && parsed.preBody.length) {
       out += parsed.preBody;
@@ -1149,20 +1174,33 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     }
     if (treeInfo.virtualRoot && treeInfo.tree) {
       for (const child of treeInfo.tree.children) {
-        out += this._serializeNode(child, treeInfo.baseLevel, mode);
+        out += this._serializeNode(child, treeInfo.baseLevel, mode, collapseV2);
       }
     } else if (treeInfo.tree) {
-      out += this._serializeNode(treeInfo.tree, treeInfo.baseLevel, mode);
+      out += this._serializeNode(treeInfo.tree, treeInfo.baseLevel, mode, collapseV2);
     }
     return out;
   }
 
-  _serializeMindmap(parsed: ParsedMindmap, treeInfo: TreeInfo, structureMode: unknown): string {
+  _serializeMindmap(
+    parsed: ParsedMindmap,
+    treeInfo: TreeInfo,
+    structureMode: unknown,
+    forceCollapseV2 = false
+  ): string {
     const mode = this._normalizeStructureMode(structureMode) || parsed.structureMode || this._defaultStructure();
-    const content = this._serialize(parsed, treeInfo, mode);
+    const collapseV2 = forceCollapseV2 || parsed.collapseV2;
+    const content = this._serialize(parsed, treeInfo, mode, forceCollapseV2);
     const frontmatter = this._splitFrontmatter(content).frontmatter;
-    if (this._readStructureFromFrontmatter(frontmatter) === mode) return content;
-    return this._withFrontmatterUpdates(content, { 'mindmap-structure': mode });
+    const updates: Frontmatter = {};
+    if (this._readStructureFromFrontmatter(frontmatter) !== mode) {
+      updates['mindmap-structure'] = mode;
+    }
+    if (collapseV2) {
+      updates['mindmap-collapse-version'] = COLLAPSE_VERSION;
+      updates['mindmap-collapsed'] = collectCollapsedPaths(treeInfo);
+    }
+    return Object.keys(updates).length ? this._withFrontmatterUpdates(content, updates) : content;
   }
 
   _maxSerializedLevel(treeInfo: TreeInfo | null | undefined): number {
@@ -1182,14 +1220,21 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     return walk(treeInfo.tree, treeInfo.baseLevel);
   }
 
-  _serializeNode(node: MindmapNode, level: number, structureMode: unknown): string {
+  _serializeNode(
+    node: MindmapNode,
+    level: number,
+    structureMode: unknown,
+    collapseV2 = false
+  ): string {
     const mode = this._normalizeStructureMode(structureMode) || this._defaultStructure();
     let text = node.rawText || node.text || PLACEHOLDER;
-    if (node.collapsed) {
-      const inner = text.replace(/^\*(?!\*)(.+)\*(?!\*)$/, '$1');
-      text = '*' + inner + '*';
-    } else {
-      text = text.replace(/^\*(?!\*)(.+)\*(?!\*)$/, '$1');
+    if (!collapseV2) {
+      if (node.collapsed) {
+        const inner = text.replace(/^\*(?!\*)(.+)\*(?!\*)$/, '$1');
+        text = '*' + inner + '*';
+      } else {
+        text = text.replace(/^\*(?!\*)(.+)\*(?!\*)$/, '$1');
+      }
     }
     const normalizedLevel = Math.max(1, level);
     let s: string;
@@ -1205,7 +1250,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       if (!node.bodyRaw.endsWith('\n')) s += '\n';
     }
     for (const child of node.children) {
-      s += this._serializeNode(child, level + 1, mode);
+      s += this._serializeNode(child, level + 1, mode, collapseV2);
     }
     return s;
   }

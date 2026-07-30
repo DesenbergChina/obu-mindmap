@@ -8,16 +8,38 @@ const originalLoad = Module._load;
 
 function parseYaml(source) {
   const result = {};
+  let sequenceKey = null;
   for (const line of String(source || '').split(/\r?\n/)) {
+    const sequenceMatch = line.match(/^\s+-\s+(.*)$/);
+    if (sequenceMatch && sequenceKey) {
+      result[sequenceKey].push(sequenceMatch[1]);
+      continue;
+    }
     const match = line.match(/^([^:#]+):\s*(.*)$/);
     if (!match) continue;
-    result[match[1].trim()] = match[2].trim();
+    const key = match[1].trim();
+    const rawValue = match[2].trim();
+    sequenceKey = null;
+    if (rawValue === '') {
+      result[key] = [];
+      sequenceKey = key;
+    } else if (rawValue === '[]') {
+      result[key] = [];
+    } else if (/^-?\d+(?:\.\d+)?$/.test(rawValue)) {
+      result[key] = Number(rawValue);
+    } else {
+      result[key] = rawValue;
+    }
   }
   return result;
 }
 
 function stringifyYaml(value) {
-  return Object.entries(value || {}).map(([key, item]) => key + ': ' + item).join('\n') + '\n';
+  return Object.entries(value || {}).map(([key, item]) => {
+    if (!Array.isArray(item)) return key + ': ' + item;
+    if (item.length === 0) return key + ': []';
+    return key + ':\n' + item.map((entry) => '  - ' + entry).join('\n');
+  }).join('\n') + '\n';
 }
 
 class MockMarkdownView {}
@@ -123,6 +145,81 @@ async function run() {
   assert.match(editorValue, /mindmap-default: markdown/);
   assert.match(editorValue, /mindmap-collapse-version: 2/);
   assert.match(editorValue, /mindmap-collapsed: \[\]/);
+
+  const parseFixtureTree = (content, mode) => {
+    const fixtureParsed = plugin._parseStructured(content, mode);
+    return {
+      parsed: fixtureParsed,
+      treeInfo: plugin._buildTree(fixtureParsed, 'Fixture'),
+    };
+  };
+  const headingV2 = [
+    '---',
+    'type: mindmap',
+    'mindmap-structure: heading',
+    'mindmap-collapse-version: 2',
+    'mindmap-collapsed:',
+    '  - Root[1]/Branch[1]',
+    '---',
+    '# Root',
+    '## Branch',
+    '### Child',
+    '',
+  ].join('\n');
+  const headingFixture = parseFixtureTree(headingV2, 'heading');
+  assert.strictEqual(headingFixture.treeInfo.tree.children[0].collapsed, true);
+
+  const listV2 = headingV2
+    .replace('mindmap-structure: heading', 'mindmap-structure: list')
+    .replace('# Root\n## Branch\n### Child', '- Root\n  - Branch\n    - Child');
+  const listFixture = parseFixtureTree(listV2, 'list');
+  assert.strictEqual(listFixture.treeInfo.tree.children[0].collapsed, true);
+
+  const hybridV2 = headingV2
+    .replace('mindmap-structure: heading', 'mindmap-structure: hybrid')
+    .replace('# Root\n## Branch\n### Child', '# Root\n- Branch\n  - Child');
+  const hybridFixture = parseFixtureTree(hybridV2, 'hybrid');
+  assert.strictEqual(hybridFixture.treeInfo.tree.children[0].collapsed, true);
+
+  const italicV2 = headingV2
+    .replace('mindmap-collapsed:\n  - Root[1]/Branch[1]', 'mindmap-collapsed: []')
+    .replace('# Root\n## Branch\n### Child', '# *正常斜体*');
+  const italicParsed = plugin._parseStructured(italicV2, 'heading');
+  assert.strictEqual(italicParsed.headings[0].rawText, '*正常斜体*');
+  assert.strictEqual(italicParsed.headings[0].collapsed, false);
+
+  const legacyParsed = plugin._parseStructured('# *旧折叠*\n', 'heading');
+  assert.strictEqual(legacyParsed.headings[0].rawText, '旧折叠');
+  assert.strictEqual(legacyParsed.headings[0].collapsed, true);
+
+  const serializedV2 = plugin._serializeMindmap(
+    headingFixture.parsed,
+    headingFixture.treeInfo,
+    'heading'
+  );
+  const serializedV2Split = plugin._splitFrontmatter(serializedV2);
+  assert.strictEqual(serializedV2Split.frontmatter['mindmap-collapse-version'], 2);
+  assert.deepStrictEqual(serializedV2Split.frontmatter['mindmap-collapsed'], [
+    'Root[1]/Branch[1]',
+  ]);
+  assert.doesNotMatch(serializedV2Split.body, /## \*Branch\*/);
+
+  const renamedBranch = headingFixture.treeInfo.tree.children[0];
+  renamedBranch.rawText = 'Renamed Branch';
+  renamedBranch.text = 'Renamed Branch';
+  const renamedV2 = plugin._serializeMindmap(
+    headingFixture.parsed,
+    headingFixture.treeInfo,
+    'heading'
+  );
+  assert.deepStrictEqual(
+    plugin._splitFrontmatter(renamedV2).frontmatter['mindmap-collapsed'],
+    ['Root[1]/Renamed%20Branch[1]']
+  );
+  assert.doesNotMatch(plugin._splitFrontmatter(renamedV2).body, /\*Renamed Branch\*/);
+
+  const legacyTree = plugin._buildTree(legacyParsed, 'Legacy');
+  assert.match(plugin._serializeMindmap(legacyParsed, legacyTree, 'heading'), /# \*旧折叠\*/);
 
   const parsed = plugin._parseStructured(editorValue, 'list');
   const treeInfo = plugin._buildTree(parsed, file.basename);
