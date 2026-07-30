@@ -5,6 +5,7 @@ type LineStyleId = 'curve' | 'straight' | 'polyline' | 'polyline-dashed' | 'curv
 type NodeStyleId = 'rounded' | 'square' | 'borderless' | 'circle' | 'doodle';
 type StructureMode = 'heading' | 'hybrid' | 'list';
 type LayoutId = 'balanced' | 'right' | 'left' | 'tree' | 'radial';
+type DefaultView = 'mindmap' | 'markdown';
 type DropAction = 'before' | 'after' | 'child';
 type BranchSide = 'left' | 'right';
 type NodeSide = BranchSide | 'root';
@@ -35,13 +36,14 @@ interface PluginSettings {
   defaultTheme: ThemeId;
   defaultLine: LineStyleId;
   defaultNodeStyle: NodeStyleId;
+  defaultView: DefaultView;
   nodeFontSize: number;
   keyboardNavigation: boolean;
   leafOutsideDropCreatesChild: boolean;
 }
 
 type PluginSettingKey = keyof PluginSettings;
-type DropdownSettingKey = 'defaultStructure' | 'defaultLayout' | 'defaultLine' | 'defaultNodeStyle';
+type DropdownSettingKey = 'defaultStructure' | 'defaultLayout' | 'defaultLine' | 'defaultNodeStyle' | 'defaultView';
 type Frontmatter = Record<string, unknown>;
 
 interface MindmapNode {
@@ -160,6 +162,7 @@ interface StratifyOverlayElement extends HTMLDivElement {
   _stratifyCanvas?: StratifyCanvasElement | null;
   _stratifyCleanup?: (() => void) | null;
   _stratifyDragNode?: MindmapNode | null;
+  _stratifyDefaultViewAppliedFor?: string;
   _stratifyEditSnapshot?: string | null;
   _stratifyEditChanged?: boolean;
   _stratifyEditingBlur?: (() => void) | null;
@@ -319,6 +322,7 @@ const STRUCTURE_MODES: Record<StructureMode, NamedOption> = {
 const DEFAULT_STRUCTURE: StructureMode = 'hybrid';
 
 const DEFAULT_LAYOUT: LayoutId = 'balanced';
+const DEFAULT_VIEW: DefaultView = 'mindmap';
 
 const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
   defaultStructure: DEFAULT_STRUCTURE,
@@ -326,6 +330,7 @@ const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
   defaultTheme: DEFAULT_THEME,
   defaultLine: DEFAULT_LINE,
   defaultNodeStyle: DEFAULT_NODE_STYLE,
+  defaultView: DEFAULT_VIEW,
   nodeFontSize: 13,
   keyboardNavigation: true,
   leafOutsideDropCreatesChild: true,
@@ -390,6 +395,12 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
           this._showRestoreFab(v, o);
         }
       }
+    });
+
+    this.addCommand({
+      id: 'toggle-default-view',
+      name: 'Toggle default view',
+      callback: () => void this._toggleDefaultViewForActiveFile()
     });
 
     this.addCommand({
@@ -469,6 +480,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       this.pluginSettings.defaultTheme = theme || DEFAULT_THEME;
       this.pluginSettings.defaultLine = line || DEFAULT_LINE;
       this.pluginSettings.defaultNodeStyle = nodeStyle || DEFAULT_NODE_STYLE;
+      this.pluginSettings.defaultView = data.defaultView === 'markdown' ? 'markdown' : DEFAULT_VIEW;
       this.pluginSettings.nodeFontSize = Number(data.nodeFontSize);
       this.pluginSettings.keyboardNavigation = data.keyboardNavigation !== false;
       this.pluginSettings.leafOutsideDropCreatesChild = data.leafOutsideDropCreatesChild !== false;
@@ -482,6 +494,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     this.pluginSettings.defaultTheme = hasOwn(THEMES, this.pluginSettings.defaultTheme) ? this.pluginSettings.defaultTheme : DEFAULT_THEME;
     this.pluginSettings.defaultLine = hasOwn(LINE_STYLES, this.pluginSettings.defaultLine) ? this.pluginSettings.defaultLine : DEFAULT_LINE;
     this.pluginSettings.defaultNodeStyle = hasOwn(NODE_STYLES, this.pluginSettings.defaultNodeStyle) ? this.pluginSettings.defaultNodeStyle : DEFAULT_NODE_STYLE;
+    this.pluginSettings.defaultView = this.pluginSettings.defaultView === 'markdown' ? 'markdown' : DEFAULT_VIEW;
     const fontSize = Number(this.pluginSettings.nodeFontSize);
     this.pluginSettings.nodeFontSize = Number.isFinite(fontSize)
       ? Math.min(MAX_NODE_FONT_SIZE, Math.max(MIN_NODE_FONT_SIZE, Math.round(fontSize)))
@@ -520,6 +533,65 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
   _defaultNodeStyle(): NodeStyleId {
     const key = this._getSetting('defaultNodeStyle');
     return hasOwn(NODE_STYLES, key) ? key : DEFAULT_NODE_STYLE;
+  }
+
+  _defaultView(): DefaultView {
+    return this._getSetting('defaultView') === 'markdown' ? 'markdown' : DEFAULT_VIEW;
+  }
+
+  _resolveDefaultView(frontmatter: Frontmatter | null): DefaultView {
+    if (!frontmatter || !hasOwn(frontmatter, 'mindmap-default')) return this._defaultView();
+    const value = frontmatter['mindmap-default'];
+    if (value === 'mindmap' || value === 'markdown') return value;
+    return DEFAULT_VIEW;
+  }
+
+  _applyDefaultView(
+    view: obsidian.MarkdownView,
+    overlay: StratifyOverlayElement,
+    defaultView: DefaultView
+  ): void {
+    const showMarkdown = defaultView === 'markdown';
+    overlay.classList.toggle('stratify-hidden', showMarkdown);
+    if (showMarkdown) {
+      view.contentEl.removeClass('stratify-map-visible');
+      this._showRestoreFab(view, overlay);
+    } else {
+      view.contentEl.addClass('stratify-map-visible');
+      this._removeRestoreFab(view);
+    }
+  }
+
+  async _toggleDefaultViewForActiveFile(): Promise<void> {
+    const view = this.app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    const file = view?.file;
+    if (!view || !file) {
+      new obsidian.Notice('Open a mind map before changing its default view.');
+      return;
+    }
+    const overlay = view.contentEl.querySelector<StratifyOverlayElement>(':scope > .stratify-overlay');
+    if (!overlay) {
+      new obsidian.Notice('Open a mind map before changing its default view.');
+      return;
+    }
+    const configured = overlay._stratifyFrontmatter?.['mindmap-default'];
+    const next: DefaultView = configured === 'markdown' ? 'mindmap' : 'markdown';
+    if (next === 'markdown') await this._commitActiveEdit(overlay, false);
+    try {
+      await this.app.fileManager.processFrontMatter(file, (frontmatter: unknown) => {
+        if (isRecord(frontmatter)) frontmatter['mindmap-default'] = next;
+      });
+      overlay._stratifyFrontmatter = {
+        ...(overlay._stratifyFrontmatter || {}),
+        'mindmap-default': next,
+      };
+      this._applyDefaultView(view, overlay, next);
+      overlay._stratifyDefaultViewAppliedFor = file.path;
+      new obsidian.Notice('Default view set to ' + (next === 'markdown' ? 'Markdown' : 'Mind Map'));
+    } catch (error: unknown) {
+      console.error('[ObuMindmap] default view persist error', error);
+      new obsidian.Notice('Failed to change the default view: ' + errorMessage(error));
+    }
   }
 
   _baseNodeFontSize(): number {
@@ -572,6 +644,9 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       'mindmap-theme: ' + this._defaultTheme(),
       'mindmap-line: ' + this._defaultLine(),
       'mindmap-node: ' + this._defaultNodeStyle(),
+      'mindmap-default: ' + this._defaultView(),
+      'mindmap-collapse-version: 2',
+      'mindmap-collapsed: []',
       '---',
       '',
       body
@@ -626,6 +701,11 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
         if (!fm['mindmap-theme']) fm['mindmap-theme'] = this._defaultTheme();
         if (!fm['mindmap-line']) fm['mindmap-line'] = this._defaultLine();
         if (!fm['mindmap-node']) fm['mindmap-node'] = this._defaultNodeStyle();
+        if (fm['mindmap-default'] !== 'mindmap' && fm['mindmap-default'] !== 'markdown') {
+          fm['mindmap-default'] = this._defaultView();
+        }
+        fm['mindmap-collapse-version'] = 2;
+        if (!Array.isArray(fm['mindmap-collapsed'])) fm['mindmap-collapsed'] = [];
       });
       if (openAfter) {
         await this.app.workspace.openLinkText(file.path, '', true);
@@ -696,11 +776,6 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
           overlay = view.contentEl.createDiv({ cls: 'stratify-overlay' });
         }
         overlay.classList.toggle('stratify-mobile', obsidian.Platform.isMobile);
-        if (overlay.classList.contains('stratify-hidden')) {
-          view.contentEl.removeClass('stratify-map-visible');
-        } else {
-          view.contentEl.addClass('stratify-map-visible');
-        }
         if (overlay._stratifyFile !== file) {
           overlay._stratifyTheme = null;
           overlay._stratifyLayout = null;
@@ -712,6 +787,15 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
           overlay._stratifyEditSnapshot = null;
           overlay._stratifyEditChanged = false;
           overlay._stratifyLastContent = null;
+        }
+        if (overlay._stratifyDefaultViewAppliedFor !== file.path) {
+          this._applyDefaultView(view, overlay, this._resolveDefaultView(fm));
+          overlay._stratifyDefaultViewAppliedFor = file.path;
+        }
+        if (overlay.classList.contains('stratify-hidden')) {
+          view.contentEl.removeClass('stratify-map-visible');
+        } else {
+          view.contentEl.addClass('stratify-map-visible');
         }
         if (overlay._stratifyLastContent === content) continue;
         if (overlay._stratifyWriting && existing) {
@@ -1151,7 +1235,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     if (!view || !view.contentEl) return;
     let fab = view.contentEl.querySelector<HTMLButtonElement>(':scope > .stratify-fab');
     if (fab) return;
-    fab = view.contentEl.createEl('button', { cls: 'stratify-fab', text: 'Stratify Mindmap' });
+    fab = view.contentEl.createEl('button', { cls: 'stratify-fab', text: 'Obu Mindmap' });
     fab.onclick = () => {
       overlay.classList.remove('stratify-hidden');
       view.contentEl.addClass('stratify-map-visible');
@@ -4332,6 +4416,16 @@ class StratifyMindmapSettingTab extends obsidian.PluginSettingTab {
       }
     );
 
+    this.addDropdownSetting(
+      'Default view for new mind maps',
+      'Initial view for new mind maps and mind maps without mindmap-default.',
+      'defaultView',
+      {
+        mindmap: { name: 'Mind Map' },
+        markdown: { name: 'Markdown' }
+      }
+    );
+
     this.addThemeSetting();
 
     this.addDropdownSetting(
@@ -4396,7 +4490,7 @@ class StratifyMindmapSettingTab extends obsidian.PluginSettingTab {
 
     new obsidian.Setting(containerEl)
       .setName('Reset defaults')
-      .setDesc('Restore Stratify Mindmap defaults. Existing note frontmatter is not changed.')
+      .setDesc('Restore Obu Mindmap defaults. Existing note frontmatter is not changed.')
       .addButton((button) => {
         button
           .setButtonText('Reset')
