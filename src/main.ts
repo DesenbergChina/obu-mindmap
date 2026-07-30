@@ -412,6 +412,12 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     });
 
     this.addCommand({
+      id: 'migrate-legacy-collapse-markers',
+      name: 'Migrate legacy collapse markers',
+      callback: () => void this._migrateLegacyCollapseMarkers()
+    });
+
+    this.addCommand({
       id: 'cycle-layout',
       name: 'Cycle mind map layout',
       callback: () => {
@@ -599,6 +605,54 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     } catch (error: unknown) {
       console.error('[ObuMindmap] default view persist error', error);
       new obsidian.Notice('Failed to change the default view: ' + errorMessage(error));
+    }
+  }
+
+  async _migrateLegacyCollapseMarkers(): Promise<void> {
+    const view = this.app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    const file = view?.file;
+    if (!view || !file) {
+      new obsidian.Notice('Open a mind map before migrating collapse markers.');
+      return;
+    }
+    const overlay = view.contentEl.querySelector<StratifyOverlayElement>(':scope > .stratify-overlay');
+    if (!overlay) {
+      new obsidian.Notice('Open a mind map before migrating collapse markers.');
+      return;
+    }
+    try {
+      const content = view.editor ? view.editor.getValue() : await this._readFileContent(file);
+      const frontmatter = this._splitFrontmatter(content).frontmatter;
+      if (this._usesCollapseV2(frontmatter)) {
+        new obsidian.Notice('This mind map already uses collapse storage version 2');
+        return;
+      }
+      const structure = this._resolveStructure(frontmatter, content);
+      const parsed = this._parseStructured(content, structure);
+      const treeInfo = this._buildTree(parsed, file.basename);
+      let migratedCount = 0;
+      const countCollapsed = (node: MindmapNode | null): void => {
+        if (!node) return;
+        if (!node.isVirtual && node.collapsed) migratedCount += 1;
+        for (const child of node.children || []) countCollapsed(child);
+      };
+      countCollapsed(treeInfo.tree);
+
+      this._pushUndoSnapshot(overlay, content);
+      const migratedContent = this._serializeMindmap(parsed, treeInfo, structure, true);
+      await this._queueMindmapWrite(overlay, migratedContent);
+      overlay._stratifyLastContent = migratedContent;
+      overlay._stratifyParsed = this._parseStructured(migratedContent, structure);
+      overlay._stratifyTreeInfo = this._buildTree(overlay._stratifyParsed, file.basename);
+      overlay._stratifyStructure = structure;
+      overlay._stratifyFrontmatter = this._splitFrontmatter(migratedContent).frontmatter;
+      overlay._stratifySelected = null;
+      overlay._stratifyPendingEdit = null;
+      this._renderTreeIntoCanvas(overlay, true);
+      new obsidian.Notice('Migrated ' + migratedCount + ' legacy collapsed nodes');
+    } catch (error: unknown) {
+      console.error('[ObuMindmap] legacy collapse migration error', error);
+      new obsidian.Notice('Failed to migrate legacy collapse markers: ' + errorMessage(error));
     }
   }
 
