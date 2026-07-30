@@ -1879,6 +1879,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     const titleParts: string[] = [];
     if (node.depth === 0) el.classList.add('stratify-node-root');
     if (node.isVirtual) el.classList.add('stratify-node-virtual');
+    if (node.children.length) el.classList.add('stratify-has-children');
     if (node.bodyRaw && node.bodyRaw.trim()) {
       el.classList.add('stratify-node-source-note');
       titleParts.push('Contains Markdown-only content preserved with this node');
@@ -1890,17 +1891,54 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     if (titleParts.length) el.title = titleParts.join('\n');
     el.style.setProperty('--stratify-color', node.color);
     el.tabIndex = 0;
-    if (node.collapsed && node.children.length) {
-      const textSpan = el.createSpan({ cls: 'stratify-node-text' });
-      this._renderNodeContent(textSpan, node, overlay);
-      el.createSpan({ cls: 'stratify-collapse-badge' });
-    } else {
-      this._renderNodeContent(el, node, overlay);
-    }
+    this._renderNodeDisplay(el, node, overlay);
     node._el = el;
     this._attachNodeHandlers(el, node, overlay);
     if (node.collapsed && node.children.length) return;
     for (const child of node.children) this._createNodes(child, layer, overlay);
+  }
+
+  _appendCollapseToggle(
+    parent: HTMLElement,
+    node: MindmapNode,
+    overlay: StratifyOverlayElement
+  ): HTMLButtonElement | null {
+    if (!node.children || node.children.length === 0) return null;
+    const label = node.collapsed ? 'Expand children' : 'Collapse children';
+    const button = parent.createEl('button', {
+      cls: 'stratify-collapse-toggle',
+      text: node.collapsed ? '+' : '−',
+      attr: {
+        type: 'button',
+        'aria-label': label,
+        title: label,
+      },
+    });
+    const stopButtonEvent = (event: Event): void => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    button.addEventListener('pointerdown', stopButtonEvent);
+    button.addEventListener('click', (event) => {
+      stopButtonEvent(event);
+      this._toggleCollapse(overlay, node);
+    });
+    return button;
+  }
+
+  _renderNodeDisplay(
+    el: StratifyNodeElement,
+    node: MindmapNode,
+    overlay: StratifyOverlayElement
+  ): void {
+    el.empty();
+    if (!node.children || node.children.length === 0) {
+      this._renderNodeContent(el, node, overlay);
+      return;
+    }
+    const textSpan = el.createSpan({ cls: 'stratify-node-text' });
+    this._renderNodeContent(textSpan, node, overlay);
+    this._appendCollapseToggle(el, node, overlay);
   }
 
   // ────────────────────────────────────────────────────────────────
@@ -2073,7 +2111,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     el.contentEditable = 'false';
     el.classList.remove('stratify-editing');
     if (overlay._stratifyEditingNode === node) overlay._stratifyEditingNode = null;
-    this._renderNodeContent(el, node, overlay);
+    this._renderNodeDisplay(el, node, overlay);
   }
 
   _updateNodeText(node: MindmapNode, newText: string | null): void {

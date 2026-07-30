@@ -221,6 +221,79 @@ async function run() {
   const legacyTree = plugin._buildTree(legacyParsed, 'Legacy');
   assert.match(plugin._serializeMindmap(legacyParsed, legacyTree, 'heading'), /# \*旧折叠\*/);
 
+  const makeToggleHost = () => ({
+    created: [],
+    createEl(tag, options) {
+      const button = {
+        tag,
+        textContent: options.text,
+        attributes: { ...(options.attr || {}) },
+        listeners: {},
+        setAttribute(name, value) {
+          this.attributes[name] = value;
+        },
+        addEventListener(name, listener) {
+          this.listeners[name] = listener;
+        },
+      };
+      this.created.push(button);
+      return button;
+    },
+  });
+  const branchForToggle = {
+    rawText: 'Branch',
+    text: 'Branch',
+    collapsed: false,
+    children: [{}],
+  };
+  const toggleHost = makeToggleHost();
+  let toggledNode = null;
+  const originalToggleCollapse = plugin._toggleCollapse;
+  plugin._toggleCollapse = (_targetOverlay, targetNode) => {
+    toggledNode = targetNode;
+  };
+  const expandedButton = plugin._appendCollapseToggle(toggleHost, branchForToggle, {});
+  assert.strictEqual(expandedButton.textContent, '−');
+  assert.strictEqual(expandedButton.attributes['aria-label'], 'Collapse children');
+  assert.strictEqual(expandedButton.attributes.type, 'button');
+  const toggleEvent = {
+    prevented: false,
+    stopped: false,
+    preventDefault() {
+      this.prevented = true;
+    },
+    stopPropagation() {
+      this.stopped = true;
+    },
+  };
+  expandedButton.listeners.click(toggleEvent);
+  assert.strictEqual(toggleEvent.prevented, true);
+  assert.strictEqual(toggleEvent.stopped, true);
+  assert.strictEqual(toggledNode, branchForToggle);
+  const pointerEvent = {
+    prevented: false,
+    stopped: false,
+    preventDefault() {
+      this.prevented = true;
+    },
+    stopPropagation() {
+      this.stopped = true;
+    },
+  };
+  expandedButton.listeners.pointerdown(pointerEvent);
+  assert.strictEqual(pointerEvent.prevented, true);
+  assert.strictEqual(pointerEvent.stopped, true);
+
+  branchForToggle.collapsed = true;
+  const collapsedButton = plugin._appendCollapseToggle(makeToggleHost(), branchForToggle, {});
+  assert.strictEqual(collapsedButton.textContent, '+');
+  assert.strictEqual(collapsedButton.attributes['aria-label'], 'Expand children');
+  assert.strictEqual(
+    plugin._appendCollapseToggle(makeToggleHost(), { children: [], collapsed: false }, {}),
+    null
+  );
+  plugin._toggleCollapse = originalToggleCollapse;
+
   const parsed = plugin._parseStructured(editorValue, 'list');
   const treeInfo = plugin._buildTree(parsed, file.basename);
   const overlay = {
@@ -514,6 +587,9 @@ async function run() {
   const switchingNodeEl = {
     isContentEditable: true,
     textContent: 'Typed without Enter',
+    empty() {
+      this.textContent = '';
+    },
     removeEventListener: () => {},
     classList: { remove: () => {} },
   };
@@ -629,6 +705,14 @@ async function run() {
   assert.match(styles, /margin-top: var\(--stratify-mobile-toolbar-offset\)/);
   assert.match(styles, /\.stratify-overlay\.stratify-mobile \.stratify-icon-btn\s*\{[^}]*width: 44px/s);
   assert.match(styles, /\.stratify-overlay\.stratify-mobile \.stratify-more-panel\s*\{[^}]*left:/s);
+  assert.match(
+    styles,
+    /\.stratify-collapse-toggle\s*\{[^}]*min-width:\s*28px[^}]*min-height:\s*28px/s
+  );
+  assert.match(
+    styles,
+    /\.stratify-overlay\.stratify-mobile \.stratify-collapse-toggle\s*\{[^}]*min-width:\s*36px[^}]*min-height:\s*36px/s
+  );
 
   console.log('Persistence, rendering, lifecycle, and mobile toolbar tests passed');
 }

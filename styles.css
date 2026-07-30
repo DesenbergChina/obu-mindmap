@@ -448,15 +448,14 @@
 }
 
 /* Collapsed node — inline + badge after text */
-.stratify-node.stratify-collapsed {
-  cursor: pointer;
+.stratify-node.stratify-has-children {
   display: inline-flex;
   align-items: center;
   overflow: hidden;
 }
 
-.stratify-node.stratify-collapsed > .stratify-node-text {
-  max-width: calc(var(--stratify-node-max-width, 260px) - 42px);
+.stratify-node.stratify-has-children > .stratify-node-text {
+  max-width: calc(var(--stratify-node-max-width, 260px) - 38px);
   overflow: visible;
   text-overflow: clip;
   white-space: normal;
@@ -464,56 +463,37 @@
   min-width: 0;
 }
 
-.stratify-node.stratify-collapsed > .stratify-collapse-badge {
+.stratify-collapse-toggle {
+  display: inline-flex;
   flex-shrink: 0;
-  position: relative;
-  width: 18px;
-  height: 18px;
+  min-width: 28px;
+  min-height: 28px;
+  width: 28px;
+  height: 28px;
+  margin: -5px -6px -5px 4px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
   border-radius: 50%;
-  background: var(--stratify-color, #6366F1);
-  margin-left: 8px;
+  background: transparent;
+  color: currentColor;
+  box-shadow: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  touch-action: manipulation;
 }
 
-.stratify-node.stratify-collapsed > .stratify-collapse-badge::before,
-.stratify-node.stratify-collapsed > .stratify-collapse-badge::after {
-  content: '';
-  position: absolute;
-  background: #fff;
-  border-radius: 1px;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+.stratify-collapse-toggle:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
 }
 
-.stratify-node.stratify-collapsed > .stratify-collapse-badge::before {
-  width: 10px;
-  height: 2px;
-}
-
-.stratify-node.stratify-collapsed > .stratify-collapse-badge::after {
-  width: 2px;
-  height: 10px;
-}
-
-/* Root/d0: white badge on the solid root */
-.stratify-node.stratify-collapsed.stratify-node-root > .stratify-collapse-badge,
-.stratify-node.stratify-collapsed.stratify-node-d0 > .stratify-collapse-badge {
-  background: rgba(255, 255, 255, 0.85);
-}
-.stratify-node.stratify-collapsed.stratify-node-root > .stratify-collapse-badge::before,
-.stratify-node.stratify-collapsed.stratify-node-root > .stratify-collapse-badge::after,
-.stratify-node.stratify-collapsed.stratify-node-d0 > .stratify-collapse-badge::before,
-.stratify-node.stratify-collapsed.stratify-node-d0 > .stratify-collapse-badge::after {
-  background: var(--stratify-theme-root-accent, #405866);
-}
-
-/* D1: branch-colored badge */
-.stratify-node.stratify-collapsed.stratify-node-d1 > .stratify-collapse-badge {
-  background: var(--stratify-color, #405866);
-}
-.stratify-node.stratify-collapsed.stratify-node-d1 > .stratify-collapse-badge::before,
-.stratify-node.stratify-collapsed.stratify-node-d1 > .stratify-collapse-badge::after {
-  background: #fff;
+.stratify-collapse-toggle:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -3px;
 }
 
 /* Edit mode — caret visible, text wraps, no ellipsis truncation */
@@ -945,6 +925,15 @@
   min-width: 44px;
   height: 44px;
   min-height: 44px;
+}
+
+.stratify-overlay.stratify-mobile .stratify-collapse-toggle {
+  min-width: 36px;
+  min-height: 36px;
+  width: 36px;
+  height: 36px;
+  margin-top: -9px;
+  margin-bottom: -9px;
 }
 
 .stratify-overlay.stratify-mobile .stratify-icon-btn svg,
