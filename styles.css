@@ -447,7 +447,7 @@
   outline-color: var(--stratify-theme-root-accent, #8B5CF6);
 }
 
-/* Collapsed node — inline + badge after text */
+/* Branch node — text plus an explicit collapse/expand button */
 .stratify-node.stratify-has-children {
   display: inline-flex;
   align-items: center;

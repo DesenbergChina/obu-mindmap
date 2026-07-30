@@ -292,6 +292,19 @@ async function run() {
   expandedButton.listeners.pointerdown(pointerEvent);
   assert.strictEqual(pointerEvent.prevented, true);
   assert.strictEqual(pointerEvent.stopped, true);
+  const keydownEvent = {
+    prevented: false,
+    stopped: false,
+    preventDefault() {
+      this.prevented = true;
+    },
+    stopPropagation() {
+      this.stopped = true;
+    },
+  };
+  expandedButton.listeners.keydown(keydownEvent);
+  assert.strictEqual(keydownEvent.prevented, false, 'button keyboard activation must keep native behavior');
+  assert.strictEqual(keydownEvent.stopped, true, 'button key events must not reach node shortcuts');
   for (const eventName of ['mousedown', 'dblclick', 'contextmenu']) {
     const guardedEvent = {
       prevented: false,
@@ -516,6 +529,18 @@ async function run() {
   await plugin._redoMindmap(legacyOverlay);
   assert.match(legacyDiskValue, /mindmap-collapse-version: 2/);
 
+  legacyEditorValue = legacyContent;
+  legacyDiskValue = legacyContent;
+  legacyOverlay._stratifyFile = { path: 'Maps/Stale.md', basename: 'Stale' };
+  legacyOverlay._stratifyView = new MockMarkdownView();
+  legacyOverlay._stratifyFrontmatter = plugin._splitFrontmatter(legacyContent).frontmatter;
+  legacyOverlay._stratifyParsed = plugin._parseStructured(legacyContent, 'hybrid');
+  legacyOverlay._stratifyTreeInfo = plugin._buildTree(legacyOverlay._stratifyParsed, legacyFile.basename);
+  await plugin._migrateLegacyCollapseMarkers();
+  assert.match(legacyDiskValue, /mindmap-collapse-version: 2/);
+  assert.strictEqual(legacyOverlay._stratifyFile, legacyFile);
+  assert.strictEqual(legacyOverlay._stratifyView, legacyView);
+
   const legacyConvertFile = new MockTFile('Maps/Already Mindmap.md');
   const legacyConvertFrontmatter = {
     type: 'mindmap',
@@ -609,6 +634,148 @@ async function run() {
   plugin.app.vault.getAbstractFileByPath = getAbstractBeforeExport;
   plugin.app.vault.create = createBeforeExport;
   plugin._commitActiveEdit = commitBeforeExport;
+
+  const orderedFixture = parseFixtureTree(headingV2, 'heading');
+  const orderedOverlay = {
+    _stratifyFile: file,
+    _stratifyView: view,
+    _stratifyParsed: orderedFixture.parsed,
+    _stratifyTreeInfo: orderedFixture.treeInfo,
+    _stratifyStructure: 'heading',
+    _stratifySelected: null,
+    _stratifyPendingEdit: null,
+    _stratifyUndoStack: [],
+    _stratifyRedoStack: [],
+    ownerDocument: {
+      defaultView: { requestAnimationFrame: (callback) => callback() },
+    },
+  };
+  const writeBeforeOrderingTest = plugin._writeMindmapContent;
+  const renderTreeBeforeOrderingTest = plugin._renderTreeIntoCanvas;
+  const orderedStarts = [];
+  const orderedResolvers = [];
+  plugin._renderTreeIntoCanvas = () => {};
+  plugin._writeMindmapContent = (_targetOverlay, content) => new Promise((resolve) => {
+    orderedStarts.push(content);
+    orderedResolvers.push(resolve);
+  });
+  const olderWrite = plugin._queueMindmapWrite(orderedOverlay, 'older edit');
+  const branchToCollapse = orderedOverlay._stratifyTreeInfo.tree.children[0];
+  branchToCollapse.collapsed = false;
+  const collapseWrite = plugin._toggleCollapse(orderedOverlay, branchToCollapse);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepStrictEqual(
+    orderedStarts,
+    ['older edit'],
+    'a collapse write must wait for an earlier full-document save'
+  );
+  orderedResolvers.shift()();
+  await olderWrite;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.strictEqual(orderedStarts.length, 2);
+  assert.match(orderedStarts[1], /mindmap-collapsed:\n  - Root\[1\]\/Branch\[1\]/);
+  orderedResolvers.shift()();
+  await collapseWrite;
+
+  const undoTarget = orderedStarts[1];
+  orderedOverlay._stratifyUndoStack = [headingV2];
+  orderedOverlay._stratifyRedoStack = [];
+  const pendingNewerWrite = plugin._queueMindmapWrite(orderedOverlay, undoTarget);
+  const undoWrite = plugin._undoMindmap(orderedOverlay);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.strictEqual(
+    orderedStarts.length,
+    3,
+    'Undo must wait for the preceding queued document write'
+  );
+  orderedResolvers.shift()();
+  await pendingNewerWrite;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.strictEqual(orderedStarts.length, 4);
+  assert.strictEqual(orderedStarts[3], headingV2);
+  orderedResolvers.shift()();
+  assert.strictEqual(await undoWrite, true);
+
+  orderedOverlay._stratifyRedoStack = [undoTarget];
+  const pendingBeforeRedo = plugin._queueMindmapWrite(orderedOverlay, headingV2);
+  const redoWrite = plugin._redoMindmap(orderedOverlay);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.strictEqual(
+    orderedStarts.length,
+    5,
+    'Redo must wait for the preceding queued document write'
+  );
+  orderedResolvers.shift()();
+  await pendingBeforeRedo;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.strictEqual(orderedStarts.length, 6);
+  assert.strictEqual(orderedStarts[5], undoTarget);
+  orderedResolvers.shift()();
+  assert.strictEqual(await redoWrite, true);
+  plugin._writeMindmapContent = writeBeforeOrderingTest;
+  plugin._renderTreeIntoCanvas = renderTreeBeforeOrderingTest;
+  renderedContents.length = 0;
+
+  const movementContent = [
+    '---',
+    'type: mindmap',
+    'mindmap-structure: list',
+    'mindmap-collapse-version: 2',
+    'mindmap-collapsed:',
+    '  - Root[1]/Folded[1]',
+    '---',
+    '- Root',
+    '  - Folded',
+    '    - Child',
+    '  - Target',
+    '',
+  ].join('\n');
+  const movementParsed = plugin._parseStructured(movementContent, 'list');
+  const movementOverlay = {
+    _stratifyFile: file,
+    _stratifyView: view,
+    _stratifyParsed: movementParsed,
+    _stratifyTreeInfo: plugin._buildTree(movementParsed, file.basename),
+    _stratifyStructure: 'list',
+    _stratifySelected: null,
+    _stratifyPendingEdit: null,
+    _stratifyUndoStack: [],
+    _stratifyRedoStack: [],
+    ownerDocument: {
+      defaultView: { requestAnimationFrame: (callback) => callback() },
+    },
+  };
+  const queueBeforeMovementTest = plugin._queueMindmapWrite;
+  const persistBeforeMovementTest = plugin._persistAndRelayout;
+  const renderBeforeMovementTest = plugin._renderTreeIntoCanvas;
+  const movementWrites = [];
+  let movementPending = null;
+  plugin._queueMindmapWrite = async (_targetOverlay, content) => {
+    movementWrites.push(content);
+  };
+  plugin._renderTreeIntoCanvas = () => {};
+  plugin._persistAndRelayout = (targetOverlay) => {
+    movementPending = persistBeforeMovementTest.call(plugin, targetOverlay);
+    return movementPending;
+  };
+  const foldedNode = movementOverlay._stratifyTreeInfo.tree.children[0];
+  const targetNode = movementOverlay._stratifyTreeInfo.tree.children[1];
+  assert.strictEqual(plugin._moveNodeAsChild(movementOverlay, foldedNode, targetNode), true);
+  await movementPending;
+  assert.deepStrictEqual(
+    plugin._splitFrontmatter(movementWrites.at(-1)).frontmatter['mindmap-collapsed'],
+    ['Root[1]/Target[1]/Folded[1]']
+  );
+  const movedFoldedNode = movementOverlay._stratifyTreeInfo.tree.children[0].children[0];
+  plugin._deleteNode(movementOverlay, movedFoldedNode);
+  await movementPending;
+  assert.deepStrictEqual(
+    plugin._splitFrontmatter(movementWrites.at(-1)).frontmatter['mindmap-collapsed'],
+    []
+  );
+  plugin._queueMindmapWrite = queueBeforeMovementTest;
+  plugin._persistAndRelayout = persistBeforeMovementTest;
+  plugin._renderTreeIntoCanvas = renderBeforeMovementTest;
 
   editorReadCount = 0;
   vaultReadCount = 0;

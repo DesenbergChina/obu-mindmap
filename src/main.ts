@@ -634,6 +634,13 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     try {
       const content = view.editor ? view.editor.getValue() : await this._readFileContent(file);
       const frontmatter = this._splitFrontmatter(content).frontmatter;
+      if (
+        typeof frontmatter?.type !== 'string' ||
+        frontmatter.type.toLowerCase() !== 'mindmap'
+      ) {
+        new obsidian.Notice('The active note is not an Obu mind map.');
+        return;
+      }
       if (this._usesCollapseV2(frontmatter)) {
         new obsidian.Notice('This mind map already uses collapse storage version 2');
         return;
@@ -656,7 +663,9 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
         'mindmap-collapse-version': COLLAPSE_VERSION,
         'mindmap-collapsed': collectCollapsedPaths(treeInfo),
       });
-      await this._queueMindmapWrite(overlay, migratedContent);
+      overlay._stratifyFile = file;
+      overlay._stratifyView = view;
+      await this._queueMindmapWrite(overlay, migratedContent, file, view);
       overlay._stratifyLastContent = migratedContent;
       overlay._stratifyParsed = this._parseStructured(migratedContent, structure);
       overlay._stratifyTreeInfo = this._buildTree(overlay._stratifyParsed, file.basename);
@@ -1662,16 +1671,11 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       this._renderTreeIntoCanvas(overlay, true);
       if (!file) return;
       try {
-        overlay._stratifyWriting = true;
-        await this._writeMindmapContent(overlay, newContent);
+        await this._queueMindmapWrite(overlay, newContent, file, view);
         this._render(overlay, newContent, nextFrontmatter, fileBasename, view, file);
       } catch (error: unknown) {
         console.error('[ObuMindmap] structure mode persist error', error);
         new obsidian.Notice('Failed to change mindmap mode: ' + errorMessage(error));
-      } finally {
-        (overlay.ownerDocument.defaultView || window).requestAnimationFrame(() => {
-          overlay._stratifyWriting = false;
-        });
       }
     };
 
@@ -2043,9 +2047,12 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     button.addEventListener('mousedown', stopButtonEvent);
     button.addEventListener('dblclick', stopButtonEvent);
     button.addEventListener('contextmenu', stopButtonEvent);
+    button.addEventListener('keydown', (event) => {
+      event.stopPropagation();
+    });
     button.addEventListener('click', (event) => {
       stopButtonEvent(event);
-      this._toggleCollapse(overlay, node);
+      void this._toggleCollapse(overlay, node);
     });
     return button;
   }
@@ -2097,6 +2104,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     });
     this._attachNodeDragHandlers(el, node, overlay);
     el.addEventListener('keydown', (e) => {
+      if (e.target !== el) return;
       if (el.isContentEditable) {
         if (overlay._stratifyMention && this._handleMentionKeydown(overlay, e)) return;
         if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -2142,7 +2150,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
           this._startEdit(overlay, node);
         } else if (e.key === ' ') {
           e.preventDefault();
-          this._toggleCollapse(overlay, node);
+          void this._toggleCollapse(overlay, node);
         }
       }
     });
@@ -2342,12 +2350,11 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     const frontmatter = this._splitFrontmatter(content).frontmatter || {};
     try {
       this._pushRedoSnapshot(overlay);
-      overlay._stratifyWriting = true;
       overlay._stratifyStructure = null;
       overlay._stratifySelected = null;
       overlay._stratifyPendingEdit = null;
       overlay._stratifyEditSnapshot = null;
-      await this._writeMindmapContent(overlay, content);
+      await this._queueMindmapWrite(overlay, content, file, view);
       this._render(overlay, content, frontmatter, file.basename, view, file);
       new obsidian.Notice(this._isZh() ? '已回退上一步导图操作' : 'Undid last mindmap action');
       return true;
@@ -2355,10 +2362,6 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       console.error('[ObuMindmap] undo error', error);
       new obsidian.Notice('Failed to undo mindmap action: ' + errorMessage(error));
       return false;
-    } finally {
-      (overlay.ownerDocument.defaultView || window).requestAnimationFrame(() => {
-        overlay._stratifyWriting = false;
-      });
     }
   }
 
@@ -2376,12 +2379,11 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     const frontmatter = this._splitFrontmatter(content).frontmatter || {};
     try {
       this._pushUndoSnapshotForRedo(overlay);
-      overlay._stratifyWriting = true;
       overlay._stratifyStructure = null;
       overlay._stratifySelected = null;
       overlay._stratifyPendingEdit = null;
       overlay._stratifyEditSnapshot = null;
-      await this._writeMindmapContent(overlay, content);
+      await this._queueMindmapWrite(overlay, content, file, view);
       this._render(overlay, content, frontmatter, file.basename, view, file);
       new obsidian.Notice(this._isZh() ? '已重做导图操作' : 'Redid mindmap action');
       return true;
@@ -2389,10 +2391,6 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       console.error('[ObuMindmap] redo error', error);
       new obsidian.Notice('Failed to redo mindmap action: ' + errorMessage(error));
       return false;
-    } finally {
-      (overlay.ownerDocument.defaultView || window).requestAnimationFrame(() => {
-        overlay._stratifyWriting = false;
-      });
     }
   }
 
@@ -3083,7 +3081,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     rows[m.index] && rows[m.index].scrollIntoView({ block: 'nearest' });
   }
 
-  _toggleCollapse(overlay: StratifyOverlayElement, node: MindmapNode): void {
+  async _toggleCollapse(overlay: StratifyOverlayElement, node: MindmapNode): Promise<void> {
     if (!node || !node.children || node.children.length === 0) return;
     const file = overlay._stratifyFile;
     const parsed = overlay._stratifyParsed;
@@ -3101,15 +3099,12 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     if (overlay._stratifySelected && overlay._stratifySelected._el) {
       overlay._stratifySelected._el.focus({ preventScroll: true });
     }
-    overlay._stratifyWriting = true;
-    this._writeMindmapContent(overlay, newContent).then(() => {
-      (overlay.ownerDocument.defaultView || window).requestAnimationFrame(() => {
-        overlay._stratifyWriting = false;
-      });
-    }).catch((error: unknown) => {
-      overlay._stratifyWriting = false;
+    try {
+      await this._queueMindmapWrite(overlay, newContent, file, overlay._stratifyView);
+    } catch (error: unknown) {
       console.error('[ObuMindmap] collapse persist error', error);
-    });
+      new obsidian.Notice('Failed to save collapse state: ' + errorMessage(error));
+    }
   }
 
   _newNode(text: string): MindmapNode {
@@ -3292,10 +3287,13 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
   // clean structure (and so `bodyRaw` slots stay consistent).
   // ────────────────────────────────────────────────────────────────
 
-  _queueMindmapWrite(overlay: StratifyOverlayElement, content: string): Promise<void> {
+  _queueMindmapWrite(
+    overlay: StratifyOverlayElement,
+    content: string,
+    file = overlay._stratifyFile,
+    view = overlay._stratifyView
+  ): Promise<void> {
     overlay._stratifyWriting = true;
-    const file = overlay._stratifyFile;
-    const view = overlay._stratifyView;
     const previous = overlay._stratifyPersistChain || Promise.resolve();
     const queued = previous
       .catch(() => undefined)
