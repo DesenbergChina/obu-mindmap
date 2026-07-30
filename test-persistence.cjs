@@ -43,6 +43,13 @@ function stringifyYaml(value) {
 }
 
 class MockMarkdownView {}
+class MockTFile {
+  constructor(path) {
+    this.path = path;
+    this.basename = path.split('/').at(-1).replace(/\.md$/i, '');
+    this.extension = 'md';
+  }
+}
 const mockPlatform = { isMobile: false };
 const notices = [];
 class MockNotice {
@@ -57,6 +64,7 @@ Module._load = function (request, parent, isMain) {
     Plugin: class {},
     PluginSettingTab: class {},
     MarkdownView: MockMarkdownView,
+    TFile: MockTFile,
     Notice: MockNotice,
     Platform: mockPlatform,
     getLanguage: () => 'en',
@@ -284,6 +292,21 @@ async function run() {
   expandedButton.listeners.pointerdown(pointerEvent);
   assert.strictEqual(pointerEvent.prevented, true);
   assert.strictEqual(pointerEvent.stopped, true);
+  for (const eventName of ['mousedown', 'dblclick', 'contextmenu']) {
+    const guardedEvent = {
+      prevented: false,
+      stopped: false,
+      preventDefault() {
+        this.prevented = true;
+      },
+      stopPropagation() {
+        this.stopped = true;
+      },
+    };
+    expandedButton.listeners[eventName](guardedEvent);
+    assert.strictEqual(guardedEvent.prevented, true);
+    assert.strictEqual(guardedEvent.stopped, true);
+  }
 
   branchForToggle.collapsed = true;
   const collapsedButton = plugin._appendCollapseToggle(makeToggleHost(), branchForToggle, {});
@@ -360,7 +383,7 @@ async function run() {
     'repeat scans must preserve a manual switch to the mind map'
   );
 
-  const activeFrontmatter = {};
+  const activeFrontmatter = { 'mindmap-default': 'markdown' };
   plugin.app.fileManager = {
     processFrontMatter: async (target, update) => {
       assert.strictEqual(target, file);
@@ -368,6 +391,22 @@ async function run() {
     },
   };
   plugin.app.workspace.getActiveViewOfType = () => view;
+  const getFileCacheBeforeDefaultCommand = plugin.app.metadataCache.getFileCache;
+  plugin.app.metadataCache.getFileCache = () => ({
+    frontmatter: {
+      type: 'mindmap',
+      'mindmap-structure': 'list',
+      'mindmap-default': 'markdown',
+    },
+  });
+  overlay._stratifyFrontmatter = undefined;
+  notices.length = 0;
+  await plugin._toggleDefaultViewForActiveFile();
+  assert.strictEqual(activeFrontmatter['mindmap-default'], 'mindmap');
+  assert.ok(!overlayClasses.has('stratify-hidden'));
+  assert.strictEqual(notices.at(-1), 'Default view set to Mind Map');
+
+  delete activeFrontmatter['mindmap-default'];
   overlay._stratifyFrontmatter = {};
   notices.length = 0;
   await plugin._toggleDefaultViewForActiveFile();
@@ -378,6 +417,7 @@ async function run() {
   assert.strictEqual(activeFrontmatter['mindmap-default'], 'mindmap');
   assert.ok(!overlayClasses.has('stratify-hidden'));
   assert.strictEqual(notices.at(-1), 'Default view set to Mind Map');
+  plugin.app.metadataCache.getFileCache = getFileCacheBeforeDefaultCommand;
 
   const processFrontMatterBeforeBrandTest = plugin.app.fileManager.processFrontMatter;
   const consoleErrorBeforeBrandTest = console.error;
@@ -451,6 +491,8 @@ async function run() {
   assert.match(legacyDiskValue, /mindmap-collapse-version: 2/);
   assert.doesNotMatch(plugin._splitFrontmatter(legacyDiskValue).body, /\*需求分析\*/);
   assert.doesNotMatch(plugin._splitFrontmatter(legacyDiskValue).body, /\*后端\*/);
+  assert.match(plugin._splitFrontmatter(legacyDiskValue).body, /^## 需求分析\n- 后端$/m);
+  assert.doesNotMatch(plugin._splitFrontmatter(legacyDiskValue).body, /### 后端/);
   const migratedParsed = plugin._parseStructured(legacyDiskValue, 'hybrid');
   const migratedTree = plugin._buildTree(migratedParsed, legacyFile.basename);
   const migratedNodes = [];
@@ -474,12 +516,36 @@ async function run() {
   await plugin._redoMindmap(legacyOverlay);
   assert.match(legacyDiskValue, /mindmap-collapse-version: 2/);
 
+  const legacyConvertFile = new MockTFile('Maps/Already Mindmap.md');
+  const legacyConvertFrontmatter = {
+    type: 'mindmap',
+    'mindmap-structure': 'heading',
+  };
+  const readFileBeforeConvert = plugin._readFileContent;
+  const processFrontMatterBeforeConvert = plugin.app.fileManager.processFrontMatter;
+  const scanBeforeConvert = plugin._scan;
+  plugin._readFileContent = async () => '---\ntype: mindmap\nmindmap-structure: heading\n---\n# *Old fold*\n';
+  plugin.app.fileManager.processFrontMatter = async (target, update) => {
+    assert.strictEqual(target, legacyConvertFile);
+    update(legacyConvertFrontmatter);
+  };
+  plugin._scan = () => {};
+  await plugin._convertFileToMindmap(legacyConvertFile, false);
+  assert.strictEqual(
+    legacyConvertFrontmatter['mindmap-collapse-version'],
+    undefined,
+    're-converting a legacy mind map must not silently switch its collapse semantics'
+  );
+  plugin._readFileContent = readFileBeforeConvert;
+  plugin.app.fileManager.processFrontMatter = processFrontMatterBeforeConvert;
+  plugin._scan = scanBeforeConvert;
+
   plugin.app.workspace.getActiveViewOfType = activeViewBeforeMigration;
   plugin.app.vault.modify = modifyBeforeMigration;
   renderedContents.length = 0;
 
   const exportFile = { path: 'Maps/项目.md', basename: '项目', extension: 'md' };
-  const exportSource = [
+  let exportSource = [
     '---',
     'type: mindmap',
     'mindmap-collapse-version: 2',
@@ -500,6 +566,8 @@ async function run() {
     file: exportFile,
     editor: { getValue: () => exportSource },
   });
+  const exportOverlay = {};
+  exportView.contentEl = { querySelector: () => exportOverlay };
   let createdPath = null;
   let createdContent = null;
   let openedPath = null;
@@ -507,6 +575,8 @@ async function run() {
   const openLinkBeforeExport = plugin.app.workspace.openLinkText;
   const getAbstractBeforeExport = plugin.app.vault.getAbstractFileByPath;
   const createBeforeExport = plugin.app.vault.create;
+  const commitBeforeExport = plugin._commitActiveEdit;
+  let exportEditCommitted = false;
   plugin.app.workspace.getActiveViewOfType = () => exportView;
   plugin.app.workspace.openLinkText = async (pathToOpen) => {
     openedPath = pathToOpen;
@@ -519,11 +589,18 @@ async function run() {
     createdContent = contentToCreate;
     return { path: pathToCreate };
   };
+  plugin._commitActiveEdit = async (targetOverlay) => {
+    assert.strictEqual(targetOverlay, exportOverlay);
+    exportEditCommitted = true;
+    exportSource = exportSource.replace('## 需求', '## 需求（已编辑）');
+    return true;
+  };
   const sourceBeforeExport = diskValue;
   notices.length = 0;
   await plugin._exportCleanMarkdown();
+  assert.strictEqual(exportEditCommitted, true);
   assert.strictEqual(createdPath, 'Maps/项目-clean-2.md');
-  assert.strictEqual(createdContent, '# 项目\n\n## 需求\n\n```yaml\n---\n```');
+  assert.strictEqual(createdContent, '# 项目\n\n## 需求（已编辑）\n\n```yaml\n---\n```');
   assert.strictEqual(diskValue, sourceBeforeExport);
   assert.strictEqual(openedPath, createdPath);
   assert.strictEqual(notices.at(-1), 'Exported clean Markdown: 项目-clean-2.md');
@@ -531,6 +608,7 @@ async function run() {
   plugin.app.workspace.openLinkText = openLinkBeforeExport;
   plugin.app.vault.getAbstractFileByPath = getAbstractBeforeExport;
   plugin.app.vault.create = createBeforeExport;
+  plugin._commitActiveEdit = commitBeforeExport;
 
   editorReadCount = 0;
   vaultReadCount = 0;
