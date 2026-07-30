@@ -1,14 +1,16 @@
 {
-  "name": "stratify-mindmap",
-  "version": "1.2.1",
-  "description": "Markdown-native mind maps with deep structures and keyboard editing.",
+  "name": "obu-mindmap",
+  "version": "0.1.0",
+  "description": "Markdown-native mind maps with persistent folding and clean export.",
   "main": "main.js",
   "type": "module",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
     "lint": "eslint .",
-    "test": "node test-persistence.cjs",
+    "test:core": "node test-core.cjs",
+    "test:persistence": "node test-persistence.cjs",
+    "test": "npm run test:core && npm run test:persistence",
     "check": "npm run lint && npm run build && npm test",
     "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
@@ -17,7 +19,7 @@
     "mindmap",
     "markdown"
   ],
-  "author": "Lywooye",
+  "author": "DesenbergChina",
   "license": "MIT",
   "devDependencies": {
     "@eslint/js": "^9.39.4",
