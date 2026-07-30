@@ -656,6 +656,27 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       };
       countCollapsed(treeInfo.tree);
 
+      const overlayNeedsRebind = overlay._stratifyFile !== file || overlay._stratifyView !== view;
+      if (overlayNeedsRebind) {
+        this._clearEditAutosave(overlay);
+        const staleEditingEl = overlay._stratifyEditingNode?._el;
+        if (staleEditingEl && overlay._stratifyEditingBlur) {
+          staleEditingEl.removeEventListener('blur', overlay._stratifyEditingBlur);
+        }
+        if (staleEditingEl && overlay._stratifyMentionInput) {
+          staleEditingEl.removeEventListener('input', overlay._stratifyMentionInput);
+        }
+        this._closeMentionPopup(overlay);
+        overlay._stratifyUndoStack = [];
+        overlay._stratifyRedoStack = [];
+        overlay._stratifySelected = null;
+        overlay._stratifyPendingEdit = null;
+        overlay._stratifyEditingNode = null;
+        overlay._stratifyEditingBlur = null;
+        overlay._stratifyMentionInput = null;
+        overlay._stratifyEditSnapshot = null;
+        overlay._stratifyEditChanged = false;
+      }
       this._pushUndoSnapshot(overlay, content);
       const cleanedContent = this._removeLegacyCollapseMarkers(content, parsed);
       const migratedContent = this._withFrontmatterUpdates(cleanedContent, {

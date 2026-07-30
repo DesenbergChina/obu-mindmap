@@ -536,10 +536,63 @@ async function run() {
   legacyOverlay._stratifyFrontmatter = plugin._splitFrontmatter(legacyContent).frontmatter;
   legacyOverlay._stratifyParsed = plugin._parseStructured(legacyContent, 'hybrid');
   legacyOverlay._stratifyTreeInfo = plugin._buildTree(legacyOverlay._stratifyParsed, legacyFile.basename);
+  const staleHistoryContent = [
+    '---',
+    'type: mindmap',
+    'mindmap-structure: heading',
+    '---',
+    '# Content from another file',
+    '',
+  ].join('\n');
+  legacyOverlay._stratifyUndoStack = [staleHistoryContent];
+  legacyOverlay._stratifyRedoStack = [staleHistoryContent];
+  const removedStaleListeners = [];
+  const staleBlurListener = () => {};
+  const staleInputListener = () => {};
+  let clearedStaleTimer = null;
+  let removedMentionPopup = false;
+  legacyOverlay.ownerDocument.defaultView.clearTimeout = (timer) => {
+    clearedStaleTimer = timer;
+  };
+  legacyOverlay._stratifyAutosaveTimer = 77;
+  legacyOverlay._stratifyEditingNode = {
+    _el: {
+      removeEventListener: (name, listener) => {
+        removedStaleListeners.push([name, listener]);
+      },
+    },
+  };
+  legacyOverlay._stratifyEditingBlur = staleBlurListener;
+  legacyOverlay._stratifyMentionInput = staleInputListener;
+  legacyOverlay._stratifyMention = {
+    popup: {
+      remove: () => {
+        removedMentionPopup = true;
+      },
+    },
+  };
   await plugin._migrateLegacyCollapseMarkers();
   assert.match(legacyDiskValue, /mindmap-collapse-version: 2/);
   assert.strictEqual(legacyOverlay._stratifyFile, legacyFile);
   assert.strictEqual(legacyOverlay._stratifyView, legacyView);
+  assert.strictEqual(clearedStaleTimer, 77);
+  assert.strictEqual(legacyOverlay._stratifyAutosaveTimer, null);
+  assert.deepStrictEqual(removedStaleListeners, [
+    ['blur', staleBlurListener],
+    ['input', staleInputListener],
+  ]);
+  assert.strictEqual(removedMentionPopup, true);
+  assert.strictEqual(legacyOverlay._stratifyMention, null);
+  assert.strictEqual(legacyOverlay._stratifyMentionInput, null);
+  assert.strictEqual(legacyOverlay._stratifyEditingNode, null);
+  assert.deepStrictEqual(legacyOverlay._stratifyUndoStack, [legacyContent]);
+  assert.deepStrictEqual(legacyOverlay._stratifyRedoStack, []);
+  assert.strictEqual(await plugin._undoMindmap(legacyOverlay), true);
+  assert.strictEqual(legacyDiskValue, legacyContent);
+  const writesAfterActiveFileUndo = legacyWriteCount;
+  assert.strictEqual(await plugin._undoMindmap(legacyOverlay), false);
+  assert.strictEqual(legacyWriteCount, writesAfterActiveFileUndo);
+  assert.doesNotMatch(legacyDiskValue, /Content from another file/);
 
   const legacyConvertFile = new MockTFile('Maps/Already Mindmap.md');
   const legacyConvertFrontmatter = {
