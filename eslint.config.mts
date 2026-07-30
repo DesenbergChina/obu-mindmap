@@ -36,7 +36,7 @@ export default defineConfig(
     files: ['src/**/*.ts'],
     rules: {
       'obsidianmd/ui/sentence-case': ['warn', {
-        brands: ['Stratify Mindmap', 'Markdown', 'PNG'],
+        brands: ['Obu Mindmap', 'Markdown', 'PNG'],
         acronyms: ['PNG'],
         enforceCamelCaseLower: true,
       }],
