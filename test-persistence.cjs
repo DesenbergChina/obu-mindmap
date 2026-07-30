@@ -22,6 +22,12 @@ function stringifyYaml(value) {
 
 class MockMarkdownView {}
 const mockPlatform = { isMobile: false };
+const notices = [];
+class MockNotice {
+  constructor(message) {
+    notices.push(String(message));
+  }
+}
 
 Module._load = function (request, parent, isMain) {
   if (request !== 'obsidian') return originalLoad.call(this, request, parent, isMain);
@@ -29,6 +35,7 @@ Module._load = function (request, parent, isMain) {
     Plugin: class {},
     PluginSettingTab: class {},
     MarkdownView: MockMarkdownView,
+    Notice: MockNotice,
     Platform: mockPlatform,
     parseYaml,
     stringifyYaml,
@@ -54,6 +61,7 @@ plugin.pluginSettings = {
   defaultTheme: 'minimal',
   defaultLine: 'curve',
   defaultNodeStyle: 'rounded',
+  defaultView: 'markdown',
   nodeFontSize: 13,
 };
 plugin._renderTreeIntoCanvas = () => {};
@@ -108,6 +116,14 @@ plugin.app = {
 };
 
 async function run() {
+  assert.strictEqual(plugin._resolveDefaultView({ 'mindmap-default': 'mindmap' }), 'mindmap');
+  assert.strictEqual(plugin._resolveDefaultView({ 'mindmap-default': 'markdown' }), 'markdown');
+  assert.strictEqual(plugin._resolveDefaultView({}), 'markdown');
+  assert.strictEqual(plugin._resolveDefaultView({ 'mindmap-default': 'invalid' }), 'mindmap');
+  assert.match(editorValue, /mindmap-default: markdown/);
+  assert.match(editorValue, /mindmap-collapse-version: 2/);
+  assert.match(editorValue, /mindmap-collapsed: \[\]/);
+
   const parsed = plugin._parseStructured(editorValue, 'list');
   const treeInfo = plugin._buildTree(parsed, file.basename);
   const overlay = {
@@ -138,6 +154,8 @@ async function run() {
     addClass: (name) => hostClasses.add(name),
     removeClass: (name) => hostClasses.delete(name),
   };
+  plugin._showRestoreFab = () => {};
+  plugin._removeRestoreFab = () => {};
 
   const undoSnapshot = plugin._currentMindmapContent(overlay);
   plugin._updateNodeText(treeInfo.tree, 'Renamed Root');
@@ -157,6 +175,39 @@ async function run() {
 
   const renderedContents = [];
   plugin._render = (targetOverlay, content) => renderedContents.push(content);
+  overlay._stratifyDefaultViewAppliedFor = undefined;
+  await plugin._doScan();
+  assert.ok(
+    overlayClasses.has('stratify-hidden'),
+    'an unconfigured file must use the global Markdown default once'
+  );
+  assert.strictEqual(overlay._stratifyDefaultViewAppliedFor, file.path);
+  overlay.classList.toggle('stratify-hidden', false);
+  await plugin._doScan();
+  assert.ok(
+    !overlayClasses.has('stratify-hidden'),
+    'repeat scans must preserve a manual switch to the mind map'
+  );
+
+  const activeFrontmatter = {};
+  plugin.app.fileManager = {
+    processFrontMatter: async (target, update) => {
+      assert.strictEqual(target, file);
+      update(activeFrontmatter);
+    },
+  };
+  plugin.app.workspace.getActiveViewOfType = () => view;
+  overlay._stratifyFrontmatter = {};
+  notices.length = 0;
+  await plugin._toggleDefaultViewForActiveFile();
+  assert.strictEqual(activeFrontmatter['mindmap-default'], 'markdown');
+  assert.ok(overlayClasses.has('stratify-hidden'));
+  assert.strictEqual(notices.at(-1), 'Default view set to Markdown');
+  await plugin._toggleDefaultViewForActiveFile();
+  assert.strictEqual(activeFrontmatter['mindmap-default'], 'mindmap');
+  assert.ok(!overlayClasses.has('stratify-hidden'));
+  assert.strictEqual(notices.at(-1), 'Default view set to Mind Map');
+
   editorReadCount = 0;
   vaultReadCount = 0;
   mockPlatform.isMobile = true;
