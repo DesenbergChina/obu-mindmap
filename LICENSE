@@ -1,8 +1,74 @@
+版权所有 © [2026] [desenbergChina]
+保留所有权利。
+
+# 有限个人使用许可 Limited Personal License
+依据《中华人民共和国著作权法》《中华人民共和国民法典》制定。
+任何人下载、查阅、复制、使用本项目全部或任意部分，即表示同意接受本协议全部条款约束。
+
+1. 许可授予范围
+著作权人授予单一自然人一项全球性、免费、非独占、不可转让、不可分许可的有限使用权：
+仅限自然人在自有设备上，出于私人、非商业学习目的使用本项目。
+
+1. Grant of License
+The copyright owner grants to a single natural person a worldwide, royalty-free, non-exclusive, non-transferable, non-sublicensable limited license:
+Only for the natural person to use this project on their own devices for private, non-commercial learning purposes.
+
+2. 禁止行为（未经著作权人事先书面许可，严禁实施）
+(1) 将本项目源码、二进制文件、资源、文档用于任何商业活动、营利场景、企业办公、机构教学；
+(2) 公开上传、分发、转发、共享、出租、售卖本项目全部或部分内容；
+(3) 修改、衍生开发、逆向工程、反编译，基于本项目制作二次作品；
+(4) 删除、遮盖、篡改项目内所有版权声明与许可文本；
+(5) 将本许可项下权利转让、授予任何第三方（个人、公司、组织）。
+
+2. Prohibited Acts
+Without prior written permission from the copyright owner, the following actions are strictly forbidden:
+(1) Using the source code, binaries, assets or documentation of this project for any commercial activities, for-profit scenarios, corporate internal usage or institutional teaching;
+(2) Publicly uploading, distributing, forwarding, sharing, renting or selling any whole or part of this project;
+(3) Modifying, creating derivative works, reverse engineering, decompiling, or developing secondary works based on this project;
+(4) Deleting, obscuring or altering any copyright notices and license texts contained in the project;
+(5) Transferring or licensing the rights under this agreement to any third party (individual, company or organization).
+
+3. 法人与机构使用说明
+所有公司、社团、事业单位、组织等法律实体，不自动获得任何使用授权。
+机构、企业如需使用本项目，必须单独与著作权人签署书面商业授权协议。
+
+3. Usage for Legal Entities
+No automatic usage license is granted to any legal entities including companies, associations, public institutions and organizations.
+Any enterprise or organization intending to use this project must sign an independent written commercial license agreement with the copyright owner.
+
+4. 许可终止
+使用者一旦违反本协议任意条款，本许可立即自动终止；使用者须立即停止一切使用行为，并删除所持有的全部项目副本。
+
+4. Termination of License
+If the user violates any clause herein, this license terminates automatically and immediately. The user must cease all usage and delete all copies of the project in their possession.
+
+5. 免责声明
+本项目按“现状”提供。著作权人不作任何明示或默示担保，不承担因使用本项目引发的任何直接、间接损失。
+
+5. Disclaimer of Warranty
+This project is provided "AS IS". The copyright owner makes no express or implied warranties and shall not be liable for any direct or indirect losses arising from the use of this project.
+
+6. 其他约定
+本协议未明确授予使用者的全部著作权、知识产权权利，均完整保留于著作权人。
+因本协议产生的一切争议，适用中华人民共和国法律。
+商业授权咨询：[desenberg@163.com]
+
+6. Miscellaneous
+All copyright and intellectual property rights not explicitly granted to the user under this agreement are fully reserved by the copyright owner.
+Any dispute arising out of this agreement shall be governed by the laws of the People’s Republic of China.
+Commercial licensing inquiry: [desenberg@163.com]
+
+=====================================================================
+【版本过渡声明 | Version Transition Statement】
+本项目使用的原项目的历史版本继续沿用原 [MIT] 协议；
+本项目后续开发部分适用本《有限个人使用许可》。
+Portions of this project derived from prior versions of the original project remain licensed under the MIT License.
+All modifications, additions, and subsequent developments made to this project are exclusively governed by this Limited Personal Use License.
+
 MIT License
 
 Copyright (c) 2026 Light Ning
 Copyright (c) 2026 Lywooye
-Copyright (c) 2026 DesenbergChina
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
