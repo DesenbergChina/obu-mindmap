@@ -24,7 +24,7 @@ const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'manifest.json'
 const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
 
 assert.equal(manifest.id, 'obu-mindmap');
-assert.equal(manifest.version, '0.1.0');
+assert.equal(manifest.version, '0.2.0');
 assert.equal(packageJson.name, 'obu-mindmap');
 
 const collapse = loadTypeScript('src/collapse-state.ts');

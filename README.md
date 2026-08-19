@@ -9,6 +9,7 @@ Obu Mindmap is based on Stratify Mindmap and keeps its Markdown data format. The
 ## Highlights
 
 - Heading, Hybrid, and List structures
+- Ordered and unordered list recognition with marker-preserving edits
 - Balanced, left, right, tree, and radial layouts
 - Keyboard editing, navigation, drag-and-drop, links, and wiki links
 - Per-note default view: Mind Map or Markdown

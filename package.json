@@ -1,7 +1,7 @@
 {
   "name": "obu-mindmap",
-  "version": "0.1.0",
-  "description": "Markdown-native mind maps with persistent folding and clean export.",
+  "version": "0.2.0",
+  "description": "Markdown-native mind maps with ordered and unordered lists, persistent folding, and clean export.",
   "main": "main.js",
   "type": "module",
   "scripts": {

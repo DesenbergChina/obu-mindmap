@@ -56,6 +56,7 @@ type Frontmatter = Record<string, unknown>;
 interface MindmapNode {
   srcIdx?: number;
   kind?: 'heading' | 'list';
+  listMarker?: string;
   level: number;
   rawText: string;
   text: string;
@@ -1204,6 +1205,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
         headings.push({
           srcIdx: i,
           kind: 'list',
+          listMarker: lm[2],
           level,
           rawText,
           text: this._stripInline(rawText),
@@ -1318,6 +1320,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
   ): string {
     const mode = this._normalizeStructureMode(structureMode) || parsed.structureMode || this._defaultStructure();
     const collapseV2 = forceCollapseV2 || parsed.collapseV2;
+    const preserveHybridKinds = mode === 'hybrid' && parsed.structureMode === 'hybrid';
     let out = parsed.frontmatterRaw;
     if (parsed.preBody && parsed.preBody.length) {
       out += parsed.preBody;
@@ -1325,10 +1328,10 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     }
     if (treeInfo.virtualRoot && treeInfo.tree) {
       for (const child of treeInfo.tree.children) {
-        out += this._serializeNode(child, treeInfo.baseLevel, mode, collapseV2);
+        out += this._serializeNode(child, treeInfo.baseLevel, mode, collapseV2, preserveHybridKinds);
       }
     } else if (treeInfo.tree) {
-      out += this._serializeNode(treeInfo.tree, treeInfo.baseLevel, mode, collapseV2);
+      out += this._serializeNode(treeInfo.tree, treeInfo.baseLevel, mode, collapseV2, preserveHybridKinds);
     }
     return out;
   }
@@ -1375,7 +1378,8 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     node: MindmapNode,
     level: number,
     structureMode: unknown,
-    collapseV2 = false
+    collapseV2 = false,
+    preserveHybridKinds = false
   ): string {
     const mode = this._normalizeStructureMode(structureMode) || this._defaultStructure();
     let text = node.rawText || node.text || PLACEHOLDER;
@@ -1390,7 +1394,15 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     const normalizedLevel = Math.max(1, level);
     let s: string;
     if (mode === 'list') {
-      s = '  '.repeat(normalizedLevel - 1) + '- ' + text + '\n';
+      s = '  '.repeat(normalizedLevel - 1) + (node.listMarker || '-') + ' ' + text + '\n';
+    } else if (mode === 'hybrid' && preserveHybridKinds && node.kind === 'list') {
+      let listDepth = 0;
+      let parent = node.parent;
+      while (parent && parent.kind === 'list') {
+        listDepth += 1;
+        parent = parent.parent;
+      }
+      s = '  '.repeat(listDepth) + (node.listMarker || '-') + ' ' + text + '\n';
     } else if (mode === 'hybrid' && normalizedLevel > 6) {
       s = '  '.repeat(normalizedLevel - 7) + '- ' + text + '\n';
     } else {
@@ -1401,7 +1413,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       if (!node.bodyRaw.endsWith('\n')) s += '\n';
     }
     for (const child of node.children) {
-      s += this._serializeNode(child, level + 1, mode, collapseV2);
+      s += this._serializeNode(child, level + 1, mode, collapseV2, preserveHybridKinds);
     }
     return s;
   }
@@ -2736,6 +2748,72 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     return true;
   }
 
+  _orderedListMarker(marker: string | undefined): { start: number; delimiter: '.' | ')' } | null {
+    const match = marker?.match(/^(\d+)([.)])$/);
+    if (!match) return null;
+    return {
+      start: Number(match[1]),
+      delimiter: match[2] as '.' | ')',
+    };
+  }
+
+  _applyListFormat(node: MindmapNode, kind: 'heading' | 'list', marker?: string): void {
+    node.kind = kind;
+    if (kind === 'list') node.listMarker = marker || '-';
+    else delete node.listMarker;
+  }
+
+  _normalizeSiblingListMarkers(
+    parent: MindmapNode,
+    referenceMarker?: string,
+    preserveReferenceStart = false
+  ): void {
+    if (!parent || !referenceMarker) return;
+    const listChildren = parent.children.filter((child) => child.kind === 'list');
+    if (listChildren.length === 0) return;
+    const orderedReference = this._orderedListMarker(referenceMarker);
+    if (!orderedReference) {
+      for (const child of listChildren) child.listMarker = referenceMarker;
+      return;
+    }
+    const firstOrdered = listChildren
+      .map((child) => this._orderedListMarker(child.listMarker))
+      .find((marker) => marker !== null);
+    let next = preserveReferenceStart
+      ? orderedReference.start
+      : firstOrdered?.start ?? orderedReference.start;
+    for (const child of listChildren) {
+      child.listMarker = String(next) + orderedReference.delimiter;
+      next += 1;
+    }
+  }
+
+  _consistentSiblingListMarker(parent: MindmapNode): string | undefined {
+    const listChildren = parent.children.filter((child) => child.kind === 'list');
+    const firstMarker = listChildren[0]?.listMarker;
+    if (!firstMarker) return undefined;
+    const firstOrdered = this._orderedListMarker(firstMarker);
+    const consistent = listChildren.every((child) => {
+      if (!firstOrdered) return child.listMarker === firstMarker;
+      return this._orderedListMarker(child.listMarker)?.delimiter === firstOrdered.delimiter;
+    });
+    return consistent ? firstMarker : undefined;
+  }
+
+  _continueOrderedListMarkers(parent: MindmapNode, anchorIndex: number): void {
+    const anchor = parent.children[anchorIndex];
+    const orderedAnchor = this._orderedListMarker(anchor?.listMarker);
+    if (!orderedAnchor) return;
+    let next = orderedAnchor.start + 1;
+    for (let i = anchorIndex + 1; i < parent.children.length; i++) {
+      const child = parent.children[i];
+      const orderedChild = this._orderedListMarker(child.listMarker);
+      if (child.kind !== 'list' || orderedChild?.delimiter !== orderedAnchor.delimiter) break;
+      child.listMarker = String(next) + orderedAnchor.delimiter;
+      next += 1;
+    }
+  }
+
   _persistMove(overlay: StratifyOverlayElement, node: MindmapNode): boolean {
     overlay._stratifySelected = node;
     overlay._stratifyPendingEdit = null;
@@ -2747,44 +2825,74 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     overlay: StratifyOverlayElement,
     node: MindmapNode,
     target: MindmapNode,
-    placement: 'before' | 'after'
+    placement: 'before' | 'after',
+    recordUndo = true
   ): boolean {
     if (!this._isMovableNode(node) || !target || !target.parent) return false;
     if (node === target || this._isAncestorNode(node, target)) return false;
     const targetParent = target.parent;
     const oldParent = node.parent;
+    const sourceMarker = this._consistentSiblingListMarker(oldParent);
+    const targetKind = target.kind || 'list';
+    const targetMarker = target.listMarker;
     const oldIndex = oldParent.children.indexOf(node);
     let targetIndex = targetParent.children.indexOf(target);
     if (oldIndex < 0 || targetIndex < 0) return false;
     const finalIndex = targetIndex + (placement === 'after' ? 1 : 0);
     if (oldParent === targetParent && (oldIndex === finalIndex || oldIndex + 1 === finalIndex)) return false;
-    this._pushUndoSnapshot(overlay);
+    if (recordUndo) this._pushUndoSnapshot(overlay);
     if (oldParent === targetParent && oldIndex < targetIndex) targetIndex -= 1;
     if (!this._detachNode(node)) return false;
+    if (oldParent !== targetParent && sourceMarker) {
+      this._normalizeSiblingListMarkers(oldParent, sourceMarker, true);
+    }
     if (placement === 'after') targetIndex += 1;
     this._insertNodeAt(node, targetParent, targetIndex);
+    this._applyListFormat(node, targetKind, targetMarker);
+    const sameGroupMarker = oldParent === targetParent ? sourceMarker : undefined;
+    this._normalizeSiblingListMarkers(
+      targetParent,
+      sameGroupMarker || targetMarker,
+      Boolean(sameGroupMarker)
+    );
     return this._persistMove(overlay, node);
   }
 
   _moveNodeAsChild(overlay: StratifyOverlayElement, node: MindmapNode, target: MindmapNode): boolean {
     if (!this._isMovableNode(node) || !target || target.isVirtual) return false;
     if (node === target || this._isAncestorNode(node, target)) return false;
+    const oldParent = node.parent;
+    const sourceMarker = this._consistentSiblingListMarker(oldParent);
+    const existingChild = target.children[0];
+    const targetOrdered = this._orderedListMarker(target.listMarker);
+    const childKind = existingChild?.kind || 'list';
+    const childMarker = existingChild?.listMarker || (
+      targetOrdered ? '1' + targetOrdered.delimiter : target.listMarker || '-'
+    );
     this._pushUndoSnapshot(overlay);
     if (!this._detachNode(node)) return false;
+    if (oldParent !== target && sourceMarker) {
+      this._normalizeSiblingListMarkers(oldParent, sourceMarker, true);
+    }
     if (target.collapsed) target.collapsed = false;
     this._insertNodeAt(node, target, target.children.length);
+    this._applyListFormat(node, childKind, childMarker);
+    this._normalizeSiblingListMarkers(target, childMarker);
     return this._persistMove(overlay, node);
   }
 
   _moveNodeWithinSiblings(overlay: StratifyOverlayElement, node: MindmapNode, delta: number): boolean {
     if (!this._isMovableNode(node)) return false;
-    const siblings = node.parent.children;
+    const parent = node.parent;
+    const sourceMarker = this._consistentSiblingListMarker(parent);
+    const siblings = parent.children;
     const idx = siblings.indexOf(node);
     const next = idx + delta;
     if (idx < 0 || next < 0 || next >= siblings.length) return false;
     this._pushUndoSnapshot(overlay);
     siblings.splice(idx, 1);
     siblings.splice(next, 0, node);
+    if (sourceMarker) this._normalizeSiblingListMarkers(parent, sourceMarker, true);
     return this._persistMove(overlay, node);
   }
 
@@ -2793,42 +2901,34 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     const treeInfo = overlay._stratifyTreeInfo;
     const parent = node.parent;
     if (parent.isVirtual) return false;
-    if (!parent.parent) {
-      if (!treeInfo || treeInfo.tree !== parent) return false;
-      this._pushUndoSnapshot(overlay);
-      const fileName = (overlay._stratifyFile && overlay._stratifyFile.basename) || 'Mind Map';
-      const virtualRoot = {
-        level: (parent.level || treeInfo.baseLevel || 1) - 1,
-        rawText: fileName,
-        text: fileName,
-        children: [parent],
-        parent: null,
-        bodyRaw: '',
-        dirty: false,
-        isNew: false,
-        collapsed: false,
-        isVirtual: true,
-        color: '',
-        depth: 0,
-        width: 0,
-        height: 0,
-        x: 0,
-        y: 0,
-        _sth: 0,
-        _stw: 0,
-      };
-      parent.parent = virtualRoot;
-      treeInfo.tree = virtualRoot;
-      treeInfo.virtualRoot = true;
-    } else {
-      this._pushUndoSnapshot(overlay);
-    }
-    const grandparent = parent.parent;
-    if (!grandparent) return false;
-    const parentIndex = grandparent.children.indexOf(parent);
-    if (parentIndex < 0 || !this._detachNode(node)) return false;
-    this._insertNodeAt(node, grandparent, parentIndex + 1);
-    return this._persistMove(overlay, node);
+    if (parent.parent) return this._moveNodeRelative(overlay, node, parent, 'after');
+    if (!treeInfo || treeInfo.tree !== parent) return false;
+    this._pushUndoSnapshot(overlay);
+    const fileName = (overlay._stratifyFile && overlay._stratifyFile.basename) || 'Mind Map';
+    const virtualRoot = {
+      level: (parent.level || treeInfo.baseLevel || 1) - 1,
+      rawText: fileName,
+      text: fileName,
+      children: [parent],
+      parent: null,
+      bodyRaw: '',
+      dirty: false,
+      isNew: false,
+      collapsed: false,
+      isVirtual: true,
+      color: '',
+      depth: 0,
+      width: 0,
+      height: 0,
+      x: 0,
+      y: 0,
+      _sth: 0,
+      _stw: 0,
+    };
+    parent.parent = virtualRoot;
+    treeInfo.tree = virtualRoot;
+    treeInfo.virtualRoot = true;
+    return this._moveNodeRelative(overlay, node, parent, 'after', false);
   }
 
   _demoteNode(overlay: StratifyOverlayElement, node: MindmapNode): boolean {
@@ -2838,11 +2938,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     if (idx <= 0) return false;
     const newParent = siblings[idx - 1];
     if (!newParent || newParent.isVirtual || this._isAncestorNode(node, newParent)) return false;
-    this._pushUndoSnapshot(overlay);
-    if (!this._detachNode(node)) return false;
-    if (newParent.collapsed) newParent.collapsed = false;
-    this._insertNodeAt(node, newParent, newParent.children.length);
-    return this._persistMove(overlay, node);
+    return this._moveNodeAsChild(overlay, node, newParent);
   }
 
   _handleStructureKeydown(
@@ -3184,7 +3280,9 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
         treeInfo.virtualRoot = true;
         const newNode = this._newNode('');
         newNode.parent = virt;
+        this._applyListFormat(newNode, oldRoot.kind || 'list', oldRoot.listMarker);
         virt.children.push(newNode);
+        this._continueOrderedListMarkers(virt, 0);
         overlay._stratifyPendingEdit = edit ? newNode : null;
         void this._persistAndRelayout(overlay);
         return;
@@ -3197,7 +3295,9 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     this._pushUndoSnapshot(overlay);
     const newNode = this._newNode('');
     newNode.parent = parent;
+    this._applyListFormat(newNode, node.kind || 'list', node.listMarker);
     parent.children.splice(idx + 1, 0, newNode);
+    this._continueOrderedListMarkers(parent, idx);
     overlay._stratifyPendingEdit = edit ? newNode : null;
     void this._persistAndRelayout(overlay);
   }
@@ -3212,9 +3312,17 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     if (node.collapsed && node.children && node.children.length) {
       node.collapsed = false;
     }
+    const existingChild = node.children.at(-1);
+    const parentOrdered = this._orderedListMarker(node.listMarker);
+    const childKind = existingChild?.kind || 'list';
+    const childMarker = existingChild?.listMarker || (
+      parentOrdered ? '1' + parentOrdered.delimiter : node.listMarker || '-'
+    );
     const newNode = this._newNode('');
     newNode.parent = node;
+    this._applyListFormat(newNode, childKind, childMarker);
     node.children.push(newNode);
+    if (existingChild) this._continueOrderedListMarkers(node, node.children.length - 2);
     overlay._stratifyPendingEdit = edit ? newNode : null;
     void this._persistAndRelayout(overlay);
   }
