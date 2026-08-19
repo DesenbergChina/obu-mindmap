@@ -20,7 +20,7 @@
     "markdown"
   ],
   "author": "DesenbergChina",
-  "license": "MIT",
+  "license": "Limited Personal License",
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@types/node": "^22.15.17",

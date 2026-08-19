@@ -903,7 +903,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
 
       if (isMindmap) {
         view.contentEl.addClass('stratify-host');
-      let content: string;
+        let content: string;
         try {
           content = view.editor ? view.editor.getValue() : await this._readFileContent(file);
         } catch {
@@ -1451,7 +1451,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       if (overlay._stratifyNeedsRerender) {
         overlay._stratifyNeedsRerender = false;
         if (typeof overlay._stratifyStaleContent === 'string' &&
-            typeof overlay._stratifyStaleName === 'string' && view.file) {
+          typeof overlay._stratifyStaleName === 'string' && view.file) {
           this._render(
             overlay,
             overlay._stratifyStaleContent,
@@ -2457,7 +2457,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     overlay: StratifyOverlayElement
   ): void {
     if (!this._isMovableNode(node) || el.isContentEditable ||
-        (e.target instanceof Element && e.target.closest('.stratify-link'))) return;
+      (e.target instanceof Element && e.target.closest('.stratify-link'))) return;
     if (e.button !== undefined && e.button !== 0) return;
     if (overlay._stratifyPointerDrag) return;
 
@@ -2948,8 +2948,8 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
   ): boolean {
     const key = String(e.key).toLowerCase();
     if (this._getSetting('keyboardNavigation') !== false &&
-        !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey &&
-        ['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+      !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey &&
+      ['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
       e.preventDefault();
       this._selectNodeByArrow(overlay, node, key);
       return true;
@@ -3312,7 +3312,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     if (node.collapsed && node.children && node.children.length) {
       node.collapsed = false;
     }
-    const existingChild = node.children.at(-1);
+    const existingChild = node.children[node.children.length - 1];
     const parentOrdered = this._orderedListMarker(node.listMarker);
     const childKind = existingChild?.kind || 'list';
     const childMarker = existingChild?.listMarker || (
@@ -3596,7 +3596,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     let left: MindmapNode[];
     const cached = overlay && overlay._stratifySideCache;
     if (cached && cached.length === children.length &&
-        cached.every((s, i) => s.text === children[i].text)) {
+      cached.every((s, i) => s.text === children[i].text)) {
       right = [];
       left = [];
       for (let i = 0; i < children.length; i++) {
@@ -4672,8 +4672,8 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
         const ownerWindow = overlay.ownerDocument.defaultView || window;
         const computedStyle = ownerWindow.getComputedStyle(overlay);
         bgColor = computedStyle.getPropertyValue('--stratify-theme-bg').trim() ||
-                  computedStyle.getPropertyValue('--background-primary').trim() ||
-                  '#FFFFFF';
+          computedStyle.getPropertyValue('--background-primary').trim() ||
+          '#FFFFFF';
       }
       ctx.fillStyle = bgColor;
       const normalizedBgColor = typeof ctx.fillStyle === 'string' ? ctx.fillStyle : bgColor;
