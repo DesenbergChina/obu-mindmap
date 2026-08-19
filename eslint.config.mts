@@ -1,6 +1,10 @@
+/// <reference types="node" />
+
 import obsidianmd from 'eslint-plugin-obsidianmd';
 import globals from 'globals';
 import { defineConfig, globalIgnores } from 'eslint/config';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig(
   globalIgnores([
@@ -27,12 +31,19 @@ export default defineConfig(
             'manifest.json',
           ],
         },
-        tsconfigRootDir: import.meta.dirname,
+        tsconfigRootDir: dirname(fileURLToPath(import.meta.url)),
         extraFileExtensions: ['.json'],
       },
     },
   },
   ...obsidianmd.configs.recommended,
+  {
+    files: ['eslint.config.mts'],
+    rules: {
+      // This file runs in Node.js as an ESLint configuration, not in Obsidian.
+      'obsidianmd/no-nodejs-modules': 'off',
+    },
+  },
   {
     files: ['src/**/*.ts'],
     rules: {
