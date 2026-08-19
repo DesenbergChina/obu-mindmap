@@ -190,6 +190,32 @@ async function run() {
   const hybridFixture = parseFixtureTree(hybridV2, 'hybrid');
   assert.strictEqual(hybridFixture.treeInfo.tree.children[0].collapsed, true);
 
+  const orderedList = [
+    '1. Root',
+    '  1) Child',
+    '  2) Next',
+    '',
+  ].join('\n');
+  const orderedListFixture = parseFixtureTree(orderedList, 'list');
+  const orderedChild = orderedListFixture.treeInfo.tree.children[0];
+  orderedChild.rawText = 'Renamed Child';
+  orderedChild.text = 'Renamed Child';
+  assert.strictEqual(
+    plugin._serialize(orderedListFixture.parsed, orderedListFixture.treeInfo, 'list'),
+    '1. Root\n  1) Renamed Child\n  2) Next\n',
+    'editing an ordered list must preserve its original numbers and delimiters'
+  );
+
+  const orderedHybrid = '# Root\n1. First\n  1) Nested\n';
+  const orderedHybridFixture = parseFixtureTree(orderedHybrid, 'hybrid');
+  orderedHybridFixture.treeInfo.tree.children[0].rawText = 'Renamed First';
+  orderedHybridFixture.treeInfo.tree.children[0].text = 'Renamed First';
+  assert.strictEqual(
+    plugin._serialize(orderedHybridFixture.parsed, orderedHybridFixture.treeInfo, 'hybrid'),
+    '# Root\n1. Renamed First\n  1) Nested\n',
+    'editing a hybrid mindmap must keep ordered list nodes as lists'
+  );
+
   const italicV2 = headingV2
     .replace('mindmap-collapsed:\n  - Root[1]/Branch[1]', 'mindmap-collapsed: []')
     .replace('# Root\n## Branch\n### Child', '# *正常斜体*');
@@ -825,6 +851,261 @@ async function run() {
   assert.deepStrictEqual(
     plugin._splitFrontmatter(movementWrites.at(-1)).frontmatter['mindmap-collapsed'],
     []
+  );
+
+  const orderedMovementContent = [
+    '1. Root',
+    '  - Source',
+    '  2) Target',
+    '    5. Existing',
+    '  + Other',
+    '',
+  ].join('\n');
+  const orderedMovementParsed = plugin._parseStructured(orderedMovementContent, 'list');
+  const orderedMovementOverlay = {
+    ...movementOverlay,
+    _stratifyParsed: orderedMovementParsed,
+    _stratifyTreeInfo: plugin._buildTree(orderedMovementParsed, file.basename),
+    _stratifyUndoStack: [],
+    _stratifyRedoStack: [],
+  };
+  const sourceNode = orderedMovementOverlay._stratifyTreeInfo.tree.children[0];
+  const orderedTargetNode = orderedMovementOverlay._stratifyTreeInfo.tree.children[1];
+  assert.strictEqual(
+    plugin._moveNodeAsChild(orderedMovementOverlay, sourceNode, orderedTargetNode),
+    true
+  );
+  await movementPending;
+  assert.strictEqual(
+    plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
+    '1. Root\n  2) Target\n    5. Existing\n    6. Source\n  + Other\n',
+    'a moved node must adopt its destination style without rewriting a mixed source level'
+  );
+
+  const orderedRelativeContent = [
+    '1. Root',
+    '  1. Source Parent',
+    '    7) Move',
+    '    8) Stay A',
+    '    9) Stay B',
+    '  2. Target Parent',
+    '    4. Before',
+    '    5. After',
+    '',
+  ].join('\n');
+  const orderedRelativeParsed = plugin._parseStructured(orderedRelativeContent, 'list');
+  const orderedRelativeOverlay = {
+    ...movementOverlay,
+    _stratifyParsed: orderedRelativeParsed,
+    _stratifyTreeInfo: plugin._buildTree(orderedRelativeParsed, file.basename),
+    _stratifyUndoStack: [],
+    _stratifyRedoStack: [],
+  };
+  const sourceParent = orderedRelativeOverlay._stratifyTreeInfo.tree.children[0];
+  const targetParent = orderedRelativeOverlay._stratifyTreeInfo.tree.children[1];
+  assert.strictEqual(
+    plugin._moveNodeRelative(
+      orderedRelativeOverlay,
+      sourceParent.children[0],
+      targetParent.children[0],
+      'after'
+    ),
+    true
+  );
+  await movementPending;
+  assert.strictEqual(
+    plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
+    [
+      '1. Root',
+      '  1. Source Parent',
+      '    7) Stay A',
+      '    8) Stay B',
+      '  2. Target Parent',
+      '    4. Before',
+      '    5. Move',
+      '    6. After',
+      '',
+    ].join('\n'),
+    'cross-parent moves must close the source numbering gap and follow the target delimiter'
+  );
+
+  const orderedReorderContent = '1. Root\n  4) First\n  5) Second\n  6) Third\n';
+  const orderedReorderParsed = plugin._parseStructured(orderedReorderContent, 'list');
+  const orderedReorderOverlay = {
+    ...movementOverlay,
+    _stratifyParsed: orderedReorderParsed,
+    _stratifyTreeInfo: plugin._buildTree(orderedReorderParsed, file.basename),
+    _stratifyUndoStack: [],
+    _stratifyRedoStack: [],
+  };
+  const orderedReorderRoot = orderedReorderOverlay._stratifyTreeInfo.tree;
+  assert.strictEqual(
+    plugin._moveNodeRelative(
+      orderedReorderOverlay,
+      orderedReorderRoot.children[0],
+      orderedReorderRoot.children[1],
+      'after'
+    ),
+    true
+  );
+  await movementPending;
+  assert.strictEqual(
+    plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
+    '1. Root\n  4) Second\n  5) First\n  6) Third\n',
+    'reordering within an ordered level must preserve that level starting number'
+  );
+
+  const keyboardReorderParsed = plugin._parseStructured(orderedReorderContent, 'list');
+  const keyboardReorderOverlay = {
+    ...movementOverlay,
+    _stratifyParsed: keyboardReorderParsed,
+    _stratifyTreeInfo: plugin._buildTree(keyboardReorderParsed, file.basename),
+    _stratifyUndoStack: [],
+    _stratifyRedoStack: [],
+  };
+  assert.strictEqual(
+    plugin._moveNodeWithinSiblings(
+      keyboardReorderOverlay,
+      keyboardReorderOverlay._stratifyTreeInfo.tree.children[0],
+      1
+    ),
+    true
+  );
+  await movementPending;
+  assert.strictEqual(
+    plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
+    '1. Root\n  4) Second\n  5) First\n  6) Third\n',
+    'keyboard sibling moves must preserve ordered group numbering'
+  );
+
+  const orderedDemoteContent = [
+    '1. Root',
+    '  1) Parent',
+    '    3. Existing',
+    '  2) Move',
+    '  + Other',
+    '',
+  ].join('\n');
+  const orderedDemoteParsed = plugin._parseStructured(orderedDemoteContent, 'list');
+  const orderedDemoteOverlay = {
+    ...movementOverlay,
+    _stratifyParsed: orderedDemoteParsed,
+    _stratifyTreeInfo: plugin._buildTree(orderedDemoteParsed, file.basename),
+    _stratifyUndoStack: [],
+    _stratifyRedoStack: [],
+  };
+  assert.strictEqual(
+    plugin._demoteNode(
+      orderedDemoteOverlay,
+      orderedDemoteOverlay._stratifyTreeInfo.tree.children[1]
+    ),
+    true
+  );
+  await movementPending;
+  assert.strictEqual(
+    plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
+    '1. Root\n  1) Parent\n    3. Existing\n    4. Move\n  + Other\n',
+    'keyboard demotion must adopt the destination child marker style'
+  );
+
+  const orderedPromoteContent = [
+    '1. Root',
+    '  1) Parent',
+    '    3. Stay',
+    '    4. Promote',
+    '  2) Target',
+    '',
+  ].join('\n');
+  const orderedPromoteParsed = plugin._parseStructured(orderedPromoteContent, 'list');
+  const orderedPromoteOverlay = {
+    ...movementOverlay,
+    _stratifyParsed: orderedPromoteParsed,
+    _stratifyTreeInfo: plugin._buildTree(orderedPromoteParsed, file.basename),
+    _stratifyUndoStack: [],
+    _stratifyRedoStack: [],
+  };
+  assert.strictEqual(
+    plugin._promoteNode(
+      orderedPromoteOverlay,
+      orderedPromoteOverlay._stratifyTreeInfo.tree.children[0].children[1]
+    ),
+    true
+  );
+  await movementPending;
+  assert.strictEqual(
+    plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
+    [
+      '1. Root',
+      '  1) Parent',
+      '    3. Stay',
+      '  2) Promote',
+      '  3) Target',
+      '',
+    ].join('\n'),
+    'keyboard promotion must adopt and renumber the destination sibling style'
+  );
+
+  const orderedSiblingContent = '1. Root\n  - Other\n  4) First\n  5) Second\n';
+  const orderedSiblingParsed = plugin._parseStructured(orderedSiblingContent, 'list');
+  const orderedSiblingOverlay = {
+    ...movementOverlay,
+    _stratifyParsed: orderedSiblingParsed,
+    _stratifyTreeInfo: plugin._buildTree(orderedSiblingParsed, file.basename),
+    _stratifyUndoStack: [],
+    _stratifyRedoStack: [],
+  };
+  plugin._addSibling(
+    orderedSiblingOverlay,
+    orderedSiblingOverlay._stratifyTreeInfo.tree.children[1],
+    true
+  );
+  await movementPending;
+  assert.strictEqual(
+    plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
+    '1. Root\n  - Other\n  4) First\n  5) New Title\n  6) Second\n',
+    'a new sibling must continue adjacent ordered markers without rewriting mixed siblings'
+  );
+
+  const orderedChildContent = '1. Root\n  4) Parent\n';
+  const orderedChildParsed = plugin._parseStructured(orderedChildContent, 'list');
+  const orderedChildOverlay = {
+    ...movementOverlay,
+    _stratifyParsed: orderedChildParsed,
+    _stratifyTreeInfo: plugin._buildTree(orderedChildParsed, file.basename),
+    _stratifyUndoStack: [],
+    _stratifyRedoStack: [],
+  };
+  plugin._addChild(
+    orderedChildOverlay,
+    orderedChildOverlay._stratifyTreeInfo.tree.children[0],
+    true
+  );
+  await movementPending;
+  assert.strictEqual(
+    plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
+    '1. Root\n  4) Parent\n    1) New Title\n',
+    'the first child of an ordered node must start at one with the parent delimiter'
+  );
+
+  const mixedChildContent = '1. Root\n  4) Parent\n    - Other\n    3. Existing\n';
+  const mixedChildParsed = plugin._parseStructured(mixedChildContent, 'list');
+  const mixedChildOverlay = {
+    ...movementOverlay,
+    _stratifyParsed: mixedChildParsed,
+    _stratifyTreeInfo: plugin._buildTree(mixedChildParsed, file.basename),
+    _stratifyUndoStack: [],
+    _stratifyRedoStack: [],
+  };
+  plugin._addChild(
+    mixedChildOverlay,
+    mixedChildOverlay._stratifyTreeInfo.tree.children[0],
+    true
+  );
+  await movementPending;
+  assert.strictEqual(
+    plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
+    '1. Root\n  4) Parent\n    - Other\n    3. Existing\n    4. New Title\n',
+    'a new child must continue the adjacent marker without rewriting mixed children'
   );
   plugin._queueMindmapWrite = queueBeforeMovementTest;
   plugin._persistAndRelayout = persistBeforeMovementTest;

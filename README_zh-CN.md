@@ -9,6 +9,7 @@ Obu Mindmap 基于 Stratify Mindmap 开发，并继续使用相同的 Markdown �
 ## 主要功能
 
 - Heading、Hybrid、List 三种结构模式
+- 识别有序和无序列表，编辑后保留原列表标记
 - 平衡、左、右、树形、径向五种布局
 - 键盘编辑与导航、拖拽、普通链接和 Wiki 链接
 - 每篇笔记可独立选择默认打开脑图或 Markdown

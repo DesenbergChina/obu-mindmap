@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0
+
+### English
+
+- Added ordered-list recognition and marker-preserving write-back for List and Hybrid mind maps.
+- Made drag, keyboard restructuring, and node creation inherit destination list styles while keeping ordered groups continuous and preserving unrelated mixed markers.
+
+### 简体中文
+
+- 新增有序列表识别，并在 List 与 Hybrid 思维导图中保留原始列表标记写回 Markdown。
+- 拖拽、键盘调整层级和新建节点会继承目标层级的列表样式；有序列表保持连续编号，混排层级中的无关标记保持不变。
+
 ## 0.1.0
 
 - Established Obu Mindmap as an independent plugin with ID `obu-mindmap`, version 0.1.0, separate settings, and DesenbergChina release metadata.
