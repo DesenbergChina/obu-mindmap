@@ -22,10 +22,24 @@ function loadTypeScript(entry) {
 
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'manifest.json'), 'utf8'));
 const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+const packageLock = JSON.parse(fs.readFileSync(path.join(__dirname, 'package-lock.json'), 'utf8'));
+const readme = fs.readFileSync(path.join(__dirname, 'README.md'), 'utf8');
+const readmeZh = fs.readFileSync(path.join(__dirname, 'README_zh-CN.md'), 'utf8');
+const license = fs.readFileSync(path.join(__dirname, 'LICENSE'), 'utf8');
+const expectedLicense = 'Limited Personal License';
 
 assert.equal(manifest.id, 'obu-mindmap');
 assert.equal(manifest.version, '0.2.1');
 assert.equal(packageJson.name, 'obu-mindmap');
+assert.equal(packageJson.license, expectedLicense);
+assert.equal(packageLock.packages[''].license, expectedLicense);
+assert.match(readme, /## License\s+Limited Personal License\./);
+assert.match(readmeZh, /## License\s+有限个人使用许可（Limited Personal License）。/);
+assert.match(license, /# 有限个人使用许可 Limited Personal License/);
+assert.match(
+  license,
+  /Obu-specific modifications, additions, and subsequent developments may not be publicly uploaded, distributed, modified, or used to create derivative works without prior written permission\./
+);
 
 const collapse = loadTypeScript('src/collapse-state.ts');
 const markdown = loadTypeScript('src/markdown-file.ts');

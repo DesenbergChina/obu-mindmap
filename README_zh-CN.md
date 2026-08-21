@@ -210,4 +210,6 @@ DesenbergChina.
 
 ## License
 
-MIT。上游项目的版权声明继续保留在 [LICENSE](LICENSE) 中。
+有限个人使用许可（Limited Personal License）。未经著作权人事先书面许可，
+不得再分发、修改 Obu 专属改动，或基于这些改动创作衍生作品。继承自上游项目的
+部分继续适用其原始 MIT 条款。完整许可条款和版权声明见 [LICENSE](LICENSE)。

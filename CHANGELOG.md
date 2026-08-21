@@ -6,11 +6,15 @@
 
 - Fixed ordered-list write-back to indent nested items by their ancestor marker widths, preserving hierarchy in Obsidian Live Preview and Reading view.
 - Added regression coverage for repaired two-space input, deep mixed-marker lists, Hybrid mind maps, and structural edits.
+- Unified the project license declarations under the Limited Personal License and clarified that Obu-specific modifications may not be redistributed or used for derivative works without prior written permission.
+- Updated vulnerable transitive development dependencies reported by `npm audit`.
 
 ### 简体中文
 
 - 修复有序列表写回缩进：根据各级父列表标记宽度计算子项缩进，确保 Obsidian 实时预览和阅读模式保留原层级。
 - 补充两空格损坏输入修复、多层混合标记、Hybrid 模式和结构编辑的回归测试。
+- 将项目许可证声明统一为有限个人使用许可，并明确未经事先书面许可不得再分发 Obu 专属修改或基于这些修改创作衍生作品。
+- 更新 `npm audit` 报告存在漏洞的传递性开发依赖。
 
 ## 0.2.0
 
