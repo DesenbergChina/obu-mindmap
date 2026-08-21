@@ -1379,7 +1379,8 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     level: number,
     structureMode: unknown,
     collapseV2 = false,
-    preserveHybridKinds = false
+    preserveHybridKinds = false,
+    listIndent = ''
   ): string {
     const mode = this._normalizeStructureMode(structureMode) || this._defaultStructure();
     let text = node.rawText || node.text || PLACEHOLDER;
@@ -1393,16 +1394,15 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     }
     const normalizedLevel = Math.max(1, level);
     let s: string;
+    let childListIndent = '';
     if (mode === 'list') {
-      s = '  '.repeat(normalizedLevel - 1) + (node.listMarker || '-') + ' ' + text + '\n';
+      const listMarker = node.listMarker || '-';
+      s = listIndent + listMarker + ' ' + text + '\n';
+      childListIndent = listIndent + ' '.repeat(listMarker.length + 1);
     } else if (mode === 'hybrid' && preserveHybridKinds && node.kind === 'list') {
-      let listDepth = 0;
-      let parent = node.parent;
-      while (parent && parent.kind === 'list') {
-        listDepth += 1;
-        parent = parent.parent;
-      }
-      s = '  '.repeat(listDepth) + (node.listMarker || '-') + ' ' + text + '\n';
+      const listMarker = node.listMarker || '-';
+      s = listIndent + listMarker + ' ' + text + '\n';
+      childListIndent = listIndent + ' '.repeat(listMarker.length + 1);
     } else if (mode === 'hybrid' && normalizedLevel > 6) {
       s = '  '.repeat(normalizedLevel - 7) + '- ' + text + '\n';
     } else {
@@ -1413,7 +1413,14 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       if (!node.bodyRaw.endsWith('\n')) s += '\n';
     }
     for (const child of node.children) {
-      s += this._serializeNode(child, level + 1, mode, collapseV2, preserveHybridKinds);
+      s += this._serializeNode(
+        child,
+        level + 1,
+        mode,
+        collapseV2,
+        preserveHybridKinds,
+        childListIndent
+      );
     }
     return s;
   }

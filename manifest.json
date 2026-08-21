@@ -1,7 +1,7 @@
 {
   "id": "obu-mindmap",
   "name": "Obu Mindmap",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minAppVersion": "1.8.7",
   "description": "A Markdown-native mind map plugin with ordered and unordered lists, persistent node folding, and clean Markdown export.",
   "author": "DesenbergChina",

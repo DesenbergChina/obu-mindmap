@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.1
+
+### English
+
+- Fixed ordered-list write-back to indent nested items by their ancestor marker widths, preserving hierarchy in Obsidian Live Preview and Reading view.
+- Added regression coverage for repaired two-space input, deep mixed-marker lists, Hybrid mind maps, and structural edits.
+
+### 简体中文
+
+- 修复有序列表写回缩进：根据各级父列表标记宽度计算子项缩进，确保 Obsidian 实时预览和阅读模式保留原层级。
+- 补充两空格损坏输入修复、多层混合标记、Hybrid 模式和结构编辑的回归测试。
+
 ## 0.2.0
 
 ### English
