@@ -210,4 +210,7 @@ DesenbergChina.
 
 ## License
 
-MIT. Existing upstream copyright notices are retained in [LICENSE](LICENSE).
+Limited Personal License. Obu-specific modifications may not be redistributed,
+modified, or used to create derivative works without prior written permission.
+Portions inherited from upstream projects remain available under their original
+MIT terms. See [LICENSE](LICENSE) for the complete terms and copyright notices.
