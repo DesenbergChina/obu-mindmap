@@ -202,8 +202,22 @@ async function run() {
   orderedChild.text = 'Renamed Child';
   assert.strictEqual(
     plugin._serialize(orderedListFixture.parsed, orderedListFixture.treeInfo, 'list'),
-    '1. Root\n  1) Renamed Child\n  2) Next\n',
-    'editing an ordered list must preserve its original numbers and delimiters'
+    '1. Root\n   1) Renamed Child\n   2) Next\n',
+    'editing an ordered list must preserve its markers and repair Markdown-invalid child indentation'
+  );
+
+  const deepOrderedList = [
+    '10. Root',
+    '  1) Child',
+    '    100. Grandchild',
+    '      - Leaf',
+    '',
+  ].join('\n');
+  const deepOrderedListFixture = parseFixtureTree(deepOrderedList, 'list');
+  assert.strictEqual(
+    plugin._serialize(deepOrderedListFixture.parsed, deepOrderedListFixture.treeInfo, 'list'),
+    '10. Root\n    1) Child\n       100. Grandchild\n            - Leaf\n',
+    'deep list indentation must follow each ancestor marker width so Obsidian preserves the hierarchy'
   );
 
   const orderedHybrid = '# Root\n1. First\n  1) Nested\n';
@@ -212,8 +226,8 @@ async function run() {
   orderedHybridFixture.treeInfo.tree.children[0].text = 'Renamed First';
   assert.strictEqual(
     plugin._serialize(orderedHybridFixture.parsed, orderedHybridFixture.treeInfo, 'hybrid'),
-    '# Root\n1. Renamed First\n  1) Nested\n',
-    'editing a hybrid mindmap must keep ordered list nodes as lists'
+    '# Root\n1. Renamed First\n   1) Nested\n',
+    'editing a hybrid mindmap must keep ordered list nodes nested with valid Markdown indentation'
   );
 
   const italicV2 = headingV2
@@ -878,7 +892,7 @@ async function run() {
   await movementPending;
   assert.strictEqual(
     plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
-    '1. Root\n  2) Target\n    5. Existing\n    6. Source\n  + Other\n',
+    '1. Root\n   2) Target\n      5. Existing\n      6. Source\n   + Other\n',
     'a moved node must adopt its destination style without rewriting a mixed source level'
   );
 
@@ -917,13 +931,13 @@ async function run() {
     plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
     [
       '1. Root',
-      '  1. Source Parent',
-      '    7) Stay A',
-      '    8) Stay B',
-      '  2. Target Parent',
-      '    4. Before',
-      '    5. Move',
-      '    6. After',
+      '   1. Source Parent',
+      '      7) Stay A',
+      '      8) Stay B',
+      '   2. Target Parent',
+      '      4. Before',
+      '      5. Move',
+      '      6. After',
       '',
     ].join('\n'),
     'cross-parent moves must close the source numbering gap and follow the target delimiter'
@@ -951,7 +965,7 @@ async function run() {
   await movementPending;
   assert.strictEqual(
     plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
-    '1. Root\n  4) Second\n  5) First\n  6) Third\n',
+    '1. Root\n   4) Second\n   5) First\n   6) Third\n',
     'reordering within an ordered level must preserve that level starting number'
   );
 
@@ -974,7 +988,7 @@ async function run() {
   await movementPending;
   assert.strictEqual(
     plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
-    '1. Root\n  4) Second\n  5) First\n  6) Third\n',
+    '1. Root\n   4) Second\n   5) First\n   6) Third\n',
     'keyboard sibling moves must preserve ordered group numbering'
   );
 
@@ -1004,7 +1018,7 @@ async function run() {
   await movementPending;
   assert.strictEqual(
     plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
-    '1. Root\n  1) Parent\n    3. Existing\n    4. Move\n  + Other\n',
+    '1. Root\n   1) Parent\n      3. Existing\n      4. Move\n   + Other\n',
     'keyboard demotion must adopt the destination child marker style'
   );
 
@@ -1036,10 +1050,10 @@ async function run() {
     plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
     [
       '1. Root',
-      '  1) Parent',
-      '    3. Stay',
-      '  2) Promote',
-      '  3) Target',
+      '   1) Parent',
+      '      3. Stay',
+      '   2) Promote',
+      '   3) Target',
       '',
     ].join('\n'),
     'keyboard promotion must adopt and renumber the destination sibling style'
@@ -1062,7 +1076,7 @@ async function run() {
   await movementPending;
   assert.strictEqual(
     plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
-    '1. Root\n  - Other\n  4) First\n  5) New Title\n  6) Second\n',
+    '1. Root\n   - Other\n   4) First\n   5) New Title\n   6) Second\n',
     'a new sibling must continue adjacent ordered markers without rewriting mixed siblings'
   );
 
@@ -1083,7 +1097,7 @@ async function run() {
   await movementPending;
   assert.strictEqual(
     plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
-    '1. Root\n  4) Parent\n    1) New Title\n',
+    '1. Root\n   4) Parent\n      1) New Title\n',
     'the first child of an ordered node must start at one with the parent delimiter'
   );
 
@@ -1104,7 +1118,7 @@ async function run() {
   await movementPending;
   assert.strictEqual(
     plugin._splitFrontmatter(movementWrites.at(-1)).body.replace(/^\n/, ''),
-    '1. Root\n  4) Parent\n    - Other\n    3. Existing\n    4. New Title\n',
+    '1. Root\n   4) Parent\n      - Other\n      3. Existing\n      4. New Title\n',
     'a new child must continue the adjacent marker without rewriting mixed children'
   );
   plugin._queueMindmapWrite = queueBeforeMovementTest;
