@@ -15,6 +15,7 @@ data.json
 # macOS
 .DS_Store
 
+docs/superpowers/
 
 .env
 .env.*
