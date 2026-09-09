@@ -20,7 +20,7 @@ Obu Mindmap 基于 Stratify Mindmap 开发，并继续使用相同的 Markdown �
 - PNG 导出、主题、连接线和节点样式
 - 支持桌面端和移动端
 
-![Obu Mindmap 桌面端导图总览](assets/desktop-overview.png)
+![Obu Mindmap 桌面端导图总览](assets/obu-mindmap-基本演示.gif)
 
 ## Markdown 格式
 
