@@ -5,7 +5,7 @@ import {
   collectCollapsedPaths,
   parseLegacyCollapseMarker,
 } from './collapse-state';
-import { nextCleanMarkdownPath, stripLeadingFrontmatter } from './markdown-file';
+import { nextCleanMarkdownPath, stripInlineMarkdown, stripLeadingFrontmatter } from './markdown-file';
 
 type ThemeId = 'minimal' | 'vibrant' | 'classic' | 'fresh' | 'ocean' | 'sunset' | 'midnight' | 'slate';
 type LineStyleId = 'curve' | 'straight' | 'polyline' | 'polyline-dashed' | 'curve-dashed';
@@ -1020,24 +1020,6 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     return split.frontmatterRaw + lines.join('\n');
   }
 
-  _stripInline(text: string): string {
-    return text
-      .replace(
-        /!?\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
-        (_match: string, p1: string, p2: string | undefined): string => p2 || p1
-      )
-      .replace(/!?\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .replace(/`([^`]+)`/g, '$1')
-      .replace(/\*\*([^*]+)\*\*/g, '$1')
-      .replace(/__([^_]+)__/g, '$1')
-      .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1$2')
-      .replace(/(^|[^_])_([^_\n]+)_/g, '$1$2')
-      .replace(/~~([^~]+)~~/g, '$1')
-      .replace(/==([^=]+)==/g, '$1')
-      .replace(/<[^>]+>/g, '')
-      .trim();
-  }
-
   _safeExternalHref(target: string): string | null {
     const href = String(target || '').trim();
     return /^(?:https?:\/\/|obsidian:\/\/)/i.test(href) ? href : null;
@@ -1172,7 +1154,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
           kind: 'heading',
           level: m[1].length,
           rawText,
-          text: this._stripInline(rawText),
+          text: stripInlineMarkdown(rawText),
           children: [],
           parent: null,
           dirty: false,
@@ -1208,7 +1190,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
           listMarker: lm[2],
           level,
           rawText,
-          text: this._stripInline(rawText),
+          text: stripInlineMarkdown(rawText),
           children: [],
           parent: null,
           dirty: false,
@@ -2292,7 +2274,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     const hadRaw = node.rawText || node.text;
     if (text !== hadRaw) {
       node.rawText = text;
-      node.text = this._stripInline(text);
+      node.text = stripInlineMarkdown(text);
       node.dirty = true;
     }
   }
