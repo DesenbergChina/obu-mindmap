@@ -14,3 +14,10 @@ data.json
 
 # macOS
 .DS_Store
+
+
+.env
+.env.*
+!.env.example
+*.log
+coverage/
