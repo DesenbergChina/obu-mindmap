@@ -133,6 +133,7 @@ assert.equal(markdown.stripInlineMarkdown('<https://example.com>'), 'https://exa
 assert.equal(markdown.stripInlineMarkdown('a < b > c'), 'a < b > c');
 assert.equal(markdown.stripInlineMarkdown('\\*literal\\* and \\_value\\_'), '*literal* and _value_');
 assert.equal(markdown.stripInlineMarkdown('<span>text</span>'), 'text');
+assert.equal(markdown.stripInlineMarkdown('<<span>span>text<</span>/span>'), 'text');
 
 const occupied = new Set(['Maps/项目-clean.md', 'Maps/项目-clean-2.md']);
 assert.equal(

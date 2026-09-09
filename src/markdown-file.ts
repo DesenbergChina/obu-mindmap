@@ -1,4 +1,15 @@
 const LEADING_FRONTMATTER_RE = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/;
+const HTML_TAG_RE = /<\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*?)?\/?>/g;
+
+function stripHtmlTags(text: string): string {
+  let result = text;
+  let previous: string;
+  do {
+    previous = result;
+    result = result.replace(HTML_TAG_RE, '');
+  } while (result !== previous);
+  return result;
+}
 
 export function stripInlineMarkdown(text: string): string {
   const protectedText: string[] = [];
@@ -55,8 +66,11 @@ export function stripInlineMarkdown(text: string): string {
     .replace(/(^|[^_])_([^_\n]+)_/g, '$1$2')
     .replace(/~~([^~\n]+)~~/g, '$1')
     .replace(/==([^=\n]+)==/g, '$1')
-    .replace(/<(https?:\/\/[^>]+)>/gi, '$1')
-    .replace(/<\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*?)?\/?>/g, '');
+    .replace(/<(https?:\/\/[^>]+)>/gi, '$1');
+
+  // Removing one tag can join its surrounding characters into another tag
+  // (for example, <<span>span>). Repeat until no new match can emerge.
+  result = stripHtmlTags(result);
 
   const protectedPattern = new RegExp(sentinel + '(\\d+)' + sentinel, 'g');
   return result
