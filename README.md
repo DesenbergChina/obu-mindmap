@@ -20,7 +20,7 @@ Obu Mindmap is based on Stratify Mindmap and keeps its Markdown data format. The
 - PNG export, themes, connector styles, and node styles
 - Desktop and mobile support
 
-![Obu Mindmap desktop overview](assets/desktop-overview.png)
+![Obu Mindmap desktop overview](assets/obu-mindmap-基本演示.gif )
 
 ## Markdown format
 
