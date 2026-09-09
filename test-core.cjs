@@ -46,6 +46,7 @@ const markdown = loadTypeScript('src/markdown-file.ts');
 
 assert.equal(collapse.COLLAPSE_VERSION, 2);
 assert.equal(typeof markdown.stripLeadingFrontmatter, 'function');
+assert.equal(typeof markdown.stripInlineMarkdown, 'function');
 
 const repeatedTree = {
   virtualRoot: false,
@@ -117,6 +118,22 @@ assert.equal(
   '# 标题\n\n```yaml\n---\n```'
 );
 assert.equal(markdown.stripLeadingFrontmatter('# 无属性\n'), '# 无属性\n');
+
+assert.equal(markdown.stripInlineMarkdown('**bold**'), 'bold');
+assert.equal(markdown.stripInlineMarkdown('*italic*'), 'italic');
+assert.equal(markdown.stripInlineMarkdown('[[target|alias]]'), 'alias');
+assert.equal(markdown.stripInlineMarkdown('[name](https://example.com)'), 'name');
+assert.equal(markdown.stripInlineMarkdown('`List<T>`'), 'List<T>');
+assert.equal(markdown.stripInlineMarkdown('`a*b*`'), 'a*b*');
+assert.equal(markdown.stripInlineMarkdown('``code `with` ticks``'), 'code `with` ticks');
+assert.equal(markdown.stripInlineMarkdown('\\`not code\\` and *italic*'), '`not code` and italic');
+assert.equal(markdown.stripInlineMarkdown('`\\*literal\\*`'), '\\*literal\\*');
+assert.equal(markdown.stripInlineMarkdown('[x](https://example.com/a_(b))'), 'x');
+assert.equal(markdown.stripInlineMarkdown('<https://example.com>'), 'https://example.com');
+assert.equal(markdown.stripInlineMarkdown('a < b > c'), 'a < b > c');
+assert.equal(markdown.stripInlineMarkdown('\\*literal\\* and \\_value\\_'), '*literal* and _value_');
+assert.equal(markdown.stripInlineMarkdown('<span>text</span>'), 'text');
+assert.equal(markdown.stripInlineMarkdown('<<span>span>text<</span>/span>'), 'text');
 
 const occupied = new Set(['Maps/项目-clean.md', 'Maps/项目-clean-2.md']);
 assert.equal(
