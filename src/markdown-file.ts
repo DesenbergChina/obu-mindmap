@@ -10,12 +10,38 @@ export function stripInlineMarkdown(text: string): string {
     return sentinel + index + sentinel;
   };
 
-  // Code spans and escaped Markdown punctuation must not be interpreted by the
-  // formatting expressions below.
-  let result = text.replace(/`([^`\n]+)`/g, (_match: string, code: string) => protect(code));
-  result = result.replace(/\\([!"#$%&'()*+,\-./:;<=>?@[\]^_`{|}~])/g, (_match, character: string) =>
-    protect(character)
-  );
+  // Scan these constructs together so an escaped backtick cannot open a code
+  // span and backslashes inside a code span retain their literal meaning.
+  let result = '';
+  for (let index = 0; index < text.length; ) {
+    if (text[index] === '\\' && /[!"#$%&'()*+,\-./:;<=>?@[\]^_`{|}~]/.test(text[index + 1] || '')) {
+      result += protect(text[index + 1]);
+      index += 2;
+      continue;
+    }
+    if (text[index] === '`') {
+      let runEnd = index + 1;
+      while (text[runEnd] === '`') runEnd += 1;
+      const delimiter = text.slice(index, runEnd);
+      let closingIndex = text.indexOf(delimiter, runEnd);
+      while (
+        closingIndex >= 0 &&
+        (text[closingIndex - 1] === '`' || text[closingIndex + delimiter.length] === '`')
+      ) {
+        closingIndex = text.indexOf(delimiter, closingIndex + delimiter.length);
+      }
+      if (closingIndex >= 0) {
+        result += protect(text.slice(runEnd, closingIndex));
+        index = closingIndex + delimiter.length;
+        continue;
+      }
+      result += delimiter;
+      index = runEnd;
+      continue;
+    }
+    result += text[index];
+    index += 1;
+  }
 
   result = result
     .replace(
