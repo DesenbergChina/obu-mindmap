@@ -29,7 +29,7 @@ const license = fs.readFileSync(path.join(__dirname, 'LICENSE'), 'utf8');
 const expectedLicense = 'Limited Personal License';
 
 assert.equal(manifest.id, 'obu-mindmap');
-assert.equal(manifest.version, '0.2.1');
+assert.equal(manifest.version, '0.2.2');
 assert.equal(packageJson.name, 'obu-mindmap');
 assert.equal(packageJson.license, expectedLicense);
 assert.equal(packageLock.packages[''].license, expectedLicense);

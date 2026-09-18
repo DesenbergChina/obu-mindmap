@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.2
+
+### English
+
+- Improved inline Markdown text stripping for node labels, including escaped punctuation, single- and multi-backtick code spans, nested links, and incomplete HTML tags.
+- Extracted inline Markdown cleanup into the shared `stripInlineMarkdown` helper and added regression coverage for the repaired cases.
+
+### 简体中文
+
+- 改进行内 Markdown 文本清理，修复节点标签中的转义标点、单反引号和多反引号代码片段、嵌套链接及不完整 HTML 标签处理。
+- 将行内 Markdown 清理提取为共享的 `stripInlineMarkdown` 辅助函数，并补充相关回归测试。
+
 ## 0.2.1
 
 ### English
