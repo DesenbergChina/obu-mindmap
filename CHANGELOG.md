@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.3
+
+### English
+
+- Added an initial expansion depth setting for new mind maps and newly converted Markdown notes. Use 0 to expand all levels, or a positive integer to show nodes through that level.
+- Preserved saved folding states and legacy collapse behavior, with regression coverage for tree depth, multiple roots, deep lists, conversion, and settings persistence.
+
+### 简体中文
+
+- 新增初始展开层级设置，用于新建导图和新转换的 Markdown 笔记。0 表示全部展开，正整数表示显示到指定层级。
+- 保留已保存的折叠状态和旧版折叠行为，并补充树层级、多根导图、深层列表、转换及设置持久化回归测试。
+
 ## 0.2.2
 
 ### English

@@ -69,6 +69,16 @@ export function applyCollapsedPaths(treeInfo: CollapseTreeLike, value: unknown):
   return applied;
 }
 
+export function applyInitialExpandDepth(treeInfo: CollapseTreeLike, depth: number): void {
+  if (!treeInfo.tree) return;
+  const visit = (node: CollapseNodeLike, level: number): void => {
+    node.collapsed = depth > 0 && level === depth && node.children.length > 0;
+    for (const child of node.children) visit(child, level + 1);
+  };
+  // The generated file-name root is a container, not a Markdown node level.
+  visit(treeInfo.tree, treeInfo.virtualRoot || treeInfo.tree.isVirtual ? 0 : 1);
+}
+
 const LEGACY_COLLAPSE_RE = /^\*(?!\*)(.+)\*(?!\*)$/;
 
 export function parseLegacyCollapseMarker(

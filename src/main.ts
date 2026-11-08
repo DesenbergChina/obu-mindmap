@@ -1,6 +1,7 @@
 import * as obsidian from 'obsidian';
 import {
   applyCollapsedPaths,
+  applyInitialExpandDepth,
   COLLAPSE_VERSION,
   collectCollapsedPaths,
   parseLegacyCollapseMarker,
@@ -44,6 +45,7 @@ interface PluginSettings {
   defaultLine: LineStyleId;
   defaultNodeStyle: NodeStyleId;
   defaultView: DefaultView;
+  defaultExpandDepth: number;
   nodeFontSize: number;
   keyboardNavigation: boolean;
   leafOutsideDropCreatesChild: boolean;
@@ -341,6 +343,7 @@ const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
   defaultLine: DEFAULT_LINE,
   defaultNodeStyle: DEFAULT_NODE_STYLE,
   defaultView: DEFAULT_VIEW,
+  defaultExpandDepth: 0,
   nodeFontSize: 13,
   keyboardNavigation: true,
   leafOutsideDropCreatesChild: true,
@@ -503,6 +506,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       this.pluginSettings.defaultLine = line || DEFAULT_LINE;
       this.pluginSettings.defaultNodeStyle = nodeStyle || DEFAULT_NODE_STYLE;
       this.pluginSettings.defaultView = data.defaultView === 'markdown' ? 'markdown' : DEFAULT_VIEW;
+      this.pluginSettings.defaultExpandDepth = Number(data.defaultExpandDepth);
       this.pluginSettings.nodeFontSize = Number(data.nodeFontSize);
       this.pluginSettings.keyboardNavigation = data.keyboardNavigation !== false;
       this.pluginSettings.leafOutsideDropCreatesChild = data.leafOutsideDropCreatesChild !== false;
@@ -517,6 +521,7 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     this.pluginSettings.defaultLine = hasOwn(LINE_STYLES, this.pluginSettings.defaultLine) ? this.pluginSettings.defaultLine : DEFAULT_LINE;
     this.pluginSettings.defaultNodeStyle = hasOwn(NODE_STYLES, this.pluginSettings.defaultNodeStyle) ? this.pluginSettings.defaultNodeStyle : DEFAULT_NODE_STYLE;
     this.pluginSettings.defaultView = this.pluginSettings.defaultView === 'markdown' ? 'markdown' : DEFAULT_VIEW;
+    this.pluginSettings.defaultExpandDepth = this._defaultExpandDepth();
     const fontSize = Number(this.pluginSettings.nodeFontSize);
     this.pluginSettings.nodeFontSize = Number.isFinite(fontSize)
       ? Math.min(MAX_NODE_FONT_SIZE, Math.max(MIN_NODE_FONT_SIZE, Math.round(fontSize)))
@@ -559,6 +564,11 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
 
   _defaultView(): DefaultView {
     return this._getSetting('defaultView') === 'markdown' ? 'markdown' : DEFAULT_VIEW;
+  }
+
+  _defaultExpandDepth(): number {
+    const depth = Number(this._getSetting('defaultExpandDepth'));
+    return Number.isSafeInteger(depth) && depth >= 0 ? depth : 0;
   }
 
   _resolveDefaultView(frontmatter: Frontmatter | null): DefaultView {
@@ -781,7 +791,6 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
       'mindmap-node: ' + this._defaultNodeStyle(),
       'mindmap-default: ' + this._defaultView(),
       'mindmap-collapse-version: 2',
-      'mindmap-collapsed: []',
       '---',
       '',
       body
@@ -843,7 +852,6 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
         }
         if (!alreadyMindmap) {
           fm['mindmap-collapse-version'] = COLLAPSE_VERSION;
-          if (!Array.isArray(fm['mindmap-collapsed'])) fm['mindmap-collapsed'] = [];
         }
       });
       if (openAfter) {
@@ -1283,7 +1291,10 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
     }
 
     const treeInfo = { tree, virtualRoot, baseLevel };
-    if (parsed.collapseV2) applyCollapsedPaths(treeInfo, parsed.collapsedPaths);
+    if (parsed.collapseV2) {
+      if (Array.isArray(parsed.collapsedPaths)) applyCollapsedPaths(treeInfo, parsed.collapsedPaths);
+      else applyInitialExpandDepth(treeInfo, this._defaultExpandDepth());
+    }
     return treeInfo;
   }
 
@@ -4748,6 +4759,23 @@ class StratifyMindmapSettingTab extends obsidian.PluginSettingTab {
         markdown: { name: 'Markdown' }
       }
     );
+
+    new obsidian.Setting(containerEl)
+      .setName(this.plugin._isZh() ? '初始展开层级' : 'Initial expand depth')
+      .setDesc(this.plugin._isZh()
+        ? '用于尚未保存折叠状态的新导图。0 表示全部展开，根节点为第 1 级；多根导图的文件名节点不计级。'
+        : 'For new maps without saved folds. 0 expands all levels; the root is level 1. A generated file-name root is not counted.')
+      .addText((text) => {
+        text.inputEl.type = 'number';
+        text.inputEl.min = '0';
+        text.inputEl.step = '1';
+        text
+          .setValue(String(this.plugin.pluginSettings.defaultExpandDepth))
+          .onChange(async (value) => {
+            this.plugin.pluginSettings.defaultExpandDepth = Number(value);
+            await this.plugin.saveSettings();
+          });
+      });
 
     this.addThemeSetting();
 

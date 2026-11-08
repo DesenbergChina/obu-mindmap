@@ -29,7 +29,7 @@ const license = fs.readFileSync(path.join(__dirname, 'LICENSE'), 'utf8');
 const expectedLicense = 'Limited Personal License';
 
 assert.equal(manifest.id, 'obu-mindmap');
-assert.equal(manifest.version, '0.2.2');
+assert.equal(manifest.version, '0.2.3');
 assert.equal(packageJson.name, 'obu-mindmap');
 assert.equal(packageJson.license, expectedLicense);
 assert.equal(packageLock.packages[''].license, expectedLicense);
@@ -99,6 +99,38 @@ const virtualTree = {
   },
 };
 assert.deepEqual(collapse.collectCollapsedPaths(virtualTree), ['Caf%C3%A9[1]']);
+
+const depthTree = {
+  virtualRoot: false,
+  tree: {
+    rawText: 'Root', text: 'Root', collapsed: false,
+    children: [{
+      rawText: 'Branch', text: 'Branch', collapsed: false,
+      children: [{
+        rawText: 'Child', text: 'Child', collapsed: false,
+        children: [{ rawText: 'Leaf', text: 'Leaf', collapsed: false, children: [] }],
+      }],
+    }],
+  },
+};
+collapse.applyInitialExpandDepth(depthTree, 2);
+assert.equal(depthTree.tree.collapsed, false);
+assert.equal(depthTree.tree.children[0].collapsed, true, 'level 2 remains visible and hides its children');
+assert.equal(depthTree.tree.children[0].children[0].collapsed, false, 'manual expansion can reveal the subtree');
+collapse.applyInitialExpandDepth(depthTree, 1);
+assert.equal(depthTree.tree.collapsed, true, 'level 1 shows only the root');
+collapse.applyInitialExpandDepth(depthTree, 0);
+assert.deepEqual(collapse.collectCollapsedPaths(depthTree), [], '0 expands all levels');
+collapse.applyInitialExpandDepth(depthTree, 20);
+assert.deepEqual(collapse.collectCollapsedPaths(depthTree), [], 'a depth beyond the tree leaves it expanded');
+collapse.applyInitialExpandDepth({ tree: null, virtualRoot: false }, 2);
+const virtualDepthTree = {
+  virtualRoot: true,
+  tree: { rawText: 'File', text: 'File', collapsed: false, isVirtual: true, children: [depthTree.tree] },
+};
+collapse.applyInitialExpandDepth(virtualDepthTree, 1);
+assert.equal(virtualDepthTree.tree.collapsed, false, 'the virtual file root stays expanded');
+assert.equal(depthTree.tree.collapsed, true, 'actual top-level nodes count as level 1');
 
 assert.deepEqual(collapse.parseLegacyCollapseMarker('*需求分析*', true), {
   rawText: '需求分析',

@@ -13,6 +13,7 @@ Obu Mindmap is based on Stratify Mindmap and keeps its Markdown data format. The
 - Balanced, left, right, tree, and radial layouts
 - Keyboard editing, navigation, drag-and-drop, links, and wiki links
 - Per-note default view: Mind Map or Markdown
+- Configurable initial expansion depth for new mind maps
 - Persistent node folding without consuming Markdown italic syntax
 - Visible, accessible `+/-` controls on every branch
 - Explicit migration for legacy `*collapsed node*` markers
@@ -58,7 +59,6 @@ mindmap-line: curve
 mindmap-node: rounded
 mindmap-default: mindmap
 mindmap-collapse-version: 2
-mindmap-collapsed: []
 ---
 
 # New
@@ -81,6 +81,18 @@ mindmap-default: markdown
 Run **Obu Mindmap: Toggle default view** to change the current note and immediately apply the result. The setting is applied once when a file enters a leaf or the leaf switches files; later scans do not override a manual view switch.
 
 The **Default view for new mind maps** setting is used by new maps and notes without `mindmap-default`. An invalid per-note value safely falls back to Mind Map.
+
+## Initial expand depth
+
+In **Settings → Obu Mindmap → Initial expand depth**, enter a level:
+
+- `0`: expand all levels (default).
+- `1`: show only the root.
+- `2`: show the root and its children, with deeper nodes folded. Other positive integers work the same way.
+
+Levels follow the tree hierarchy, regardless of Markdown heading numbers. The generated file-name root in maps with multiple top-level nodes is not counted. All content remains intact, and you can click `+` to expand a branch.
+
+This setting applies to new maps and newly converted Markdown notes. An existing `mindmap-collapsed` array takes priority; an empty array means fully expanded. New maps save that array after the first edit or manual fold. Legacy collapse markers keep their existing behavior.
 
 ## Persistent folding
 

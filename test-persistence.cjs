@@ -153,7 +153,7 @@ async function run() {
   assert.strictEqual(plugin._resolveDefaultView({ 'mindmap-default': 'invalid' }), 'mindmap');
   assert.match(editorValue, /mindmap-default: markdown/);
   assert.match(editorValue, /mindmap-collapse-version: 2/);
-  assert.match(editorValue, /mindmap-collapsed: \[\]/);
+  assert.doesNotMatch(editorValue, /mindmap-collapsed:/, 'new maps use initial depth until collapse state is saved');
 
   const parseFixtureTree = (content, mode) => {
     const fixtureParsed = plugin._parseStructured(content, mode);
@@ -189,6 +189,54 @@ async function run() {
     .replace('# Root\n## Branch\n### Child', '# Root\n- Branch\n  - Child');
   const hybridFixture = parseFixtureTree(hybridV2, 'hybrid');
   assert.strictEqual(hybridFixture.treeInfo.tree.children[0].collapsed, true);
+
+  plugin.pluginSettings.defaultExpandDepth = 2;
+  for (const [mode, body] of [
+    ['heading', '## Root\n#### Branch\n###### Child'],
+    ['list', '- Root\n  - Branch\n    - Child'],
+    ['hybrid', '# Root\n- Branch\n  - Child'],
+  ]) {
+    const initialContent = '---\nmindmap-collapse-version: 2\n---\n' + body + '\n';
+    const initial = parseFixtureTree(initialContent, mode);
+    assert.strictEqual(initial.treeInfo.tree.collapsed, false);
+    assert.strictEqual(initial.treeInfo.tree.children[0].collapsed, true, mode + ' uses tree depth rather than heading numbers');
+    assert.strictEqual(initial.treeInfo.tree.children[0].children.length, 1, 'hidden content remains intact');
+    const savedFold = plugin._serializeMindmap(initial.parsed, initial.treeInfo, mode);
+    assert.strictEqual(parseFixtureTree(savedFold, mode).treeInfo.tree.children[0].collapsed, true, 'the initial fold survives save and reload');
+    initial.treeInfo.tree.children[0].collapsed = false;
+    const saved = plugin._serializeMindmap(initial.parsed, initial.treeInfo, mode);
+    assert.strictEqual(parseFixtureTree(saved, mode).treeInfo.tree.children[0].collapsed, false, 'saved expansion overrides the default');
+  }
+  plugin.pluginSettings.defaultExpandDepth = 1;
+  const multiRoot = parseFixtureTree('---\nmindmap-collapse-version: 2\n---\n# One\n## Child\n# Two\n## Other\n', 'heading');
+  assert.strictEqual(multiRoot.treeInfo.virtualRoot, true);
+  assert.strictEqual(multiRoot.treeInfo.tree.collapsed, false);
+  assert.deepStrictEqual(multiRoot.treeInfo.tree.children.map((node) => node.collapsed), [true, true]);
+  const savedMultiRoot = plugin._serializeMindmap(multiRoot.parsed, multiRoot.treeInfo, 'heading');
+  assert.deepStrictEqual(parseFixtureTree(savedMultiRoot, 'heading').treeInfo.tree.children.map((node) => node.collapsed), [true, true], 'multi-root depth persists through the existing fold paths');
+  assert.strictEqual(parseFixtureTree(headingV2, 'heading').treeInfo.tree.collapsed, false, 'saved folds override initial depth');
+  assert.strictEqual(parseFixtureTree(headingV2.replace('mindmap-collapsed:\n  - Root[1]/Branch[1]', 'mindmap-collapsed: []'), 'heading').treeInfo.tree.collapsed, false, 'an empty saved array means fully expanded');
+  assert.strictEqual(parseFixtureTree('# Root\n## *Branch*\n### Child\n', 'heading').treeInfo.tree.collapsed, false, 'legacy collapse behavior is unchanged');
+  plugin.pluginSettings.defaultExpandDepth = 7;
+  const deepBody = Array.from({ length: 9 }, (_, index) => '  '.repeat(index) + '- Level ' + (index + 1)).join('\n');
+  const deepMap = parseFixtureTree('---\nmindmap-collapse-version: 2\n---\n' + deepBody + '\n', 'list');
+  let deepNode = deepMap.treeInfo.tree;
+  for (let level = 1; level < 7; level += 1) {
+    assert.strictEqual(deepNode.collapsed, false);
+    deepNode = deepNode.children[0];
+  }
+  assert.strictEqual(deepNode.collapsed, true, 'list depth can exceed the six Markdown heading levels');
+  for (const [value, expected] of [[undefined, 0], [-1, 0], [1.5, 0], ['bad', 0], [Infinity, 0], [0, 0], [8, 8]]) {
+    plugin.pluginSettings.defaultExpandDepth = value;
+    plugin._sanitizeSettings();
+    assert.strictEqual(plugin.pluginSettings.defaultExpandDepth, expected, 'invalid depths fall back to fully expanded');
+  }
+  const savedSettings = { ...plugin.pluginSettings };
+  plugin.loadData = async () => ({ defaultExpandDepth: 3 });
+  await plugin.loadSettings();
+  assert.strictEqual(plugin.pluginSettings.defaultExpandDepth, 3, 'initial depth survives settings reload');
+  plugin.pluginSettings = savedSettings;
+  plugin.pluginSettings.defaultExpandDepth = 0;
 
   const orderedList = [
     '1. Root',
@@ -654,6 +702,16 @@ async function run() {
     undefined,
     're-converting a legacy mind map must not silently switch its collapse semantics'
   );
+  const convertedFrontmatter = {};
+  plugin.pluginSettings.defaultExpandDepth = 2;
+  plugin._readFileContent = async () => '# Root\n## Branch\n### Child\n';
+  plugin.app.fileManager.processFrontMatter = async (target, update) => update(convertedFrontmatter);
+  await plugin._convertFileToMindmap(legacyConvertFile, false);
+  const convertedContent = '---\n' + stringifyYaml(convertedFrontmatter) + '---\n# Root\n## Branch\n### Child\n';
+  assert.strictEqual(parseFixtureTree(convertedContent, 'heading').treeInfo.tree.children[0].collapsed, true, 'converted Markdown uses initial depth');
+  const newContent = plugin._newMindmapContent().replace('- New\n', '- Root\n  - Branch\n    - Child\n');
+  assert.strictEqual(parseFixtureTree(newContent, 'list').treeInfo.tree.children[0].collapsed, true, 'new maps use initial depth');
+  plugin.pluginSettings.defaultExpandDepth = 0;
   plugin._readFileContent = readFileBeforeConvert;
   plugin.app.fileManager.processFrontMatter = processFrontMatterBeforeConvert;
   plugin._scan = scanBeforeConvert;

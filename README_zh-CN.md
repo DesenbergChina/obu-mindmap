@@ -13,6 +13,7 @@ Obu Mindmap 基于 Stratify Mindmap 开发，并继续使用相同的 Markdown �
 - 平衡、左、右、树形、径向五种布局
 - 键盘编辑与导航、拖拽、普通链接和 Wiki 链接
 - 每篇笔记可独立选择默认打开脑图或 Markdown
+- 可设置新导图初始展开到第几级节点
 - 折叠状态不再占用 Markdown 斜体语法
 - 每个分支显示可点击、可访问的 `+/-` 按钮
 - 显式迁移旧版 `*折叠节点*` 标记
@@ -58,7 +59,6 @@ mindmap-line: curve
 mindmap-node: rounded
 mindmap-default: mindmap
 mindmap-collapse-version: 2
-mindmap-collapsed: []
 ---
 
 # New
@@ -81,6 +81,18 @@ mindmap-default: markdown
 执行 **Obu Mindmap: Toggle default view** 可以切换当前笔记并立即应用。默认视图只在文件首次进入 Leaf、Leaf 切换文件或工作区重新装载时应用；后续扫描不会覆盖用户手动切换的视图。
 
 设置页中的 **Default view for new mind maps** 用于新建文件和未设置 `mindmap-default` 的笔记。非法的逐篇值会安全回退到脑图视图。
+
+## 初始展开层级
+
+在 **设置 → Obu Mindmap → 初始展开层级（Initial expand depth）** 输入层级数：
+
+- `0`：全部展开（默认）。
+- `1`：只显示根节点。
+- `2`：显示根节点和下一层节点，更深的节点折叠；其他正整数依此类推。
+
+按实际树层次计级，不受 Markdown 标题编号影响。多根导图自动生成的文件名节点不计级。节点内容会完整保留，仍可点击 `+` 手动展开。
+
+设置用于新建导图和新转换的 Markdown 笔记。已有 `mindmap-collapsed` 数组时优先恢复保存状态，空数组表示全部展开。新导图在首次编辑或手动折叠后保存该数组。旧版折叠标记的行为不变。
 
 ## 新版折叠存储
 
