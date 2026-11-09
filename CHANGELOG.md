@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.1
+
+### English
+
+- Fixed text editing of collapsed nodes: double-click, F2, and the Edit context-menu action now preserve the branch's folding state and start editing immediately.
+- Added regression coverage for editing collapsed and expanded nodes, and updated the folding instructions in both READMEs.
+
+### 简体中文
+
+- 修复编辑折叠节点时自动展开的问题：双击、F2 和右键菜单“编辑”现在会保留分支折叠状态并立即进入文字编辑。
+- 新增折叠节点和已展开节点的编辑回归测试，并同步更新双语 README 的折叠说明。
+
 ## 0.3.0
 
 ### English

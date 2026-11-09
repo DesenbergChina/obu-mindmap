@@ -2203,13 +2203,6 @@ class StratifyMindmapPlugin extends obsidian.Plugin {
   _startEdit(overlay: StratifyOverlayElement, node: MindmapNode): void {
     if (!node || !node._el) return;
     if (node.isVirtual) return;
-    if (node.collapsed && node.children && node.children.length) {
-      this._pushUndoSnapshot(overlay);
-      node.collapsed = false;
-      overlay._stratifyPendingEdit = node;
-      void this._persistAndRelayout(overlay);
-      return;
-    }
     const el = node._el;
     if (el.isContentEditable) return;
     if (overlay._stratifyEditingNode && overlay._stratifyEditingNode !== node) {

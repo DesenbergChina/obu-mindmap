@@ -29,7 +29,7 @@ const license = fs.readFileSync(path.join(__dirname, 'LICENSE'), 'utf8');
 const expectedLicense = 'Limited Personal License';
 
 assert.equal(manifest.id, 'obu-mindmap');
-assert.equal(manifest.version, '0.3.0');
+assert.equal(manifest.version, '0.3.1');
 assert.equal(packageJson.name, 'obu-mindmap');
 assert.equal(packageJson.license, expectedLicense);
 assert.equal(packageLock.packages[''].license, expectedLicense);
@@ -174,4 +174,98 @@ assert.equal(
 );
 assert.equal(markdown.nextCleanMarkdownPath('Root.md', () => false), 'Root-clean.md');
 
-console.log('Core identity, collapse path, and module tests passed');
+// ────────────────────────────────────────────────────────────────
+// 回归：文字编辑折叠节点时不得改变折叠状态
+// （历史行为：_startEdit 会先展开节点，延迟到重布局后才进入编辑）
+// ────────────────────────────────────────────────────────────────
+
+function loadPluginClass() {
+  const absoluteEntry = path.resolve(__dirname, 'src/main.ts');
+  const result = esbuild.buildSync({
+    entryPoints: [absoluteEntry],
+    bundle: true,
+    write: false,
+    format: 'cjs',
+    platform: 'node',
+    target: 'es2021',
+    external: ['obsidian'],
+    logLevel: 'silent',
+  });
+  const obsidianStub = {
+    __esModule: true,
+    Plugin: class {},
+    PluginSettingTab: class {},
+  };
+  const loaded = new Module(absoluteEntry + '.bundle.cjs', module);
+  loaded.filename = absoluteEntry + '.bundle.cjs';
+  loaded.paths = Module._nodeModulePaths(path.dirname(absoluteEntry));
+  const originalLoad = Module._load;
+  Module._load = function (request) {
+    if (request === 'obsidian') return obsidianStub;
+    return originalLoad.apply(this, arguments);
+  };
+  try {
+    loaded._compile(result.outputFiles[0].text, loaded.filename);
+  } finally {
+    Module._load = originalLoad;
+  }
+  return loaded.exports.default;
+}
+
+function makeEditableElement() {
+  return {
+    isContentEditable: false,
+    textContent: '',
+    contentEditable: 'false',
+    spellcheck: true,
+    classList: { add() {}, remove() {} },
+    focus() {},
+    addEventListener() {},
+    removeEventListener() {},
+    ownerDocument: { createRange: () => ({ selectNodeContents() {} }) },
+  };
+}
+
+function makeEditHarness() {
+  const PluginClass = loadPluginClass();
+  const plugin = Object.create(PluginClass.prototype);
+  const calls = { undo: 0, persist: 0 };
+  plugin._pushUndoSnapshot = () => { calls.undo += 1; };
+  plugin._persistAndRelayout = () => { calls.persist += 1; return Promise.resolve(); };
+  plugin._selectNode = () => {};
+  plugin._currentMindmapContent = () => '- 父\n  - 子';
+  return { plugin, calls, overlay: {} };
+}
+
+function makeBranchNode(collapsed) {
+  return {
+    rawText: '父',
+    text: '父',
+    collapsed,
+    isVirtual: false,
+    children: [{ rawText: '子', text: '子', collapsed: false, children: [] }],
+    _el: makeEditableElement(),
+  };
+}
+
+{
+  const node = makeBranchNode(true);
+  const { plugin, calls, overlay } = makeEditHarness();
+  plugin._startEdit(overlay, node);
+  assert.equal(node.collapsed, true, '文字编辑保留折叠状态');
+  assert.equal(overlay._stratifyPendingEdit ?? null, null, '文字编辑不延迟到重布局');
+  assert.equal(calls.persist, 0, '开始编辑不触发持久化或重布局');
+  assert.equal(calls.undo, 0, '开始编辑不写入撤销栈');
+  assert.equal(node._el.contentEditable, 'true', '折叠节点立即进入编辑模式');
+  assert.equal(overlay._stratifyEditingNode, node, '编辑目标是被触发的节点');
+}
+
+{
+  const node = makeBranchNode(false);
+  const { plugin, overlay } = makeEditHarness();
+  plugin._startEdit(overlay, node);
+  assert.equal(node.collapsed, false, '已展开节点保持展开');
+  assert.equal(node._el.contentEditable, 'true', '已展开节点立即进入编辑模式');
+}
+
+console.log('Core identity, collapse path, module, and edit-collapse tests passed');

@@ -122,7 +122,7 @@ Each branch shows:
 - `+` when collapsed
 - no button when the node has no children
 
-Click the button, press `Space`, or use the context menu. Editing a collapsed branch or dropping a child into it expands it automatically.
+Click the button, press `Space`, or use the context menu. Dropping a child into a collapsed branch expands it automatically.
 
 ## Migrating legacy collapse markers
 
